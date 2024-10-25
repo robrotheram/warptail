@@ -3,19 +3,13 @@ tailscale:
   hostnmae: "TS_HOSTNAME"
 dashboard:
   enabled: true
-  username: admin
   password: CHANGEME
-routes:
-- name: example.domain.com
-  type: http
+services:
+- name: test
   enabled: true
-  machine:
-    address: 192.168.0.104
-    port: 30013
-- name: example tcp example
-  type: tcp
-  enabled: false
-  port: 8080
-  machine:
-    address: 192.168.0.104
-    port: 30013
+  routes:
+  - type: tcp
+    port: 8080
+    machine:
+      address: 192.168.0.104
+      port: 30013
