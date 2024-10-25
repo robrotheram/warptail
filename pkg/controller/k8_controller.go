@@ -1,10 +1,11 @@
-package kubeController
+package controller
 
 import (
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"warptail/pkg/router"
 	"warptail/pkg/utils"
 
 	"k8s.io/client-go/kubernetes"
@@ -14,14 +15,10 @@ import (
 	cmclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 )
 
-const SecretName = "warptail-certificate"
-
 type K8Controller struct {
-	k8Client     *kubernetes.Clientset
-	cmclient     *cmclientset.Clientset
-	namespace    string
-	serviceName  string
-	ingressClass string
+	k8Client *kubernetes.Clientset
+	cmclient *cmclientset.Clientset
+	utils.KubernetesConfig
 }
 
 func getK8Config() (*rest.Config, error) {
@@ -57,7 +54,7 @@ func getCurrentNamespace() (string, error) {
 	return string(namespaceBytes), nil
 }
 
-func NewK8Controller(cfg utils.K8Config) (*K8Controller, error) {
+func NewK8Controller(cfg utils.KubernetesConfig) (*K8Controller, error) {
 	config, err := getK8Config()
 	if err != nil {
 		return nil, err
@@ -71,21 +68,27 @@ func NewK8Controller(cfg utils.K8Config) (*K8Controller, error) {
 		return nil, err
 	}
 
-	namespace, err := getCurrentNamespace()
-	if err != nil {
-		namespace = cfg.Namespace
+	if len(cfg.Namespace) == 0 {
+		namespace, err := getCurrentNamespace()
+		if err != nil {
+			cfg.Namespace = namespace
+		}
 	}
 
 	return &K8Controller{
-		k8Client:     k8client,
-		cmclient:     cmclient,
-		namespace:    namespace,
-		serviceName:  cfg.ServiceName,
-		ingressClass: cfg.IngressClass,
+		k8Client:         k8client,
+		cmclient:         cmclient,
+		KubernetesConfig: cfg,
 	}, nil
 }
 
-func (ctrl *K8Controller) Update(routes []utils.RouteConfig) {
+func (ctrl *K8Controller) Update(router *router.Router) {
+	routes := []utils.RouteConfig{}
+	for _, svc := range router.Services {
+		for _, route := range svc.Routes {
+			routes = append(routes, route.Config())
+		}
+	}
 	if err := ctrl.createService(routes); err != nil {
 		log.Printf("K8 Service Error: %v", err)
 	}

@@ -1,39 +1,17 @@
 package router
 
 import (
-	"fmt"
-	"log"
-	"sync"
-	"warptail/pkg/kubeController"
+	"net/http"
 	"warptail/pkg/utils"
 
-	"github.com/google/uuid"
+	"github.com/gosimple/slug"
 	"tailscale.com/tsnet"
 )
 
-type RouterStatus string
-
-const (
-	STARTING = RouterStatus("Starting")
-	RUNNING  = RouterStatus("Running")
-	STOPPING = RouterStatus("Stopping")
-	STOPPED  = RouterStatus("Stopped")
-)
-
-type Route interface {
-	Start() error
-	Stop() error
-	Update(utils.RouteConfig) error
-	Config() utils.RouteConfig
-	Status() RouterStatus
-	Stats() utils.TimeSeriesData
-}
-
 type Router struct {
-	routes map[string]Route
-	ts     *tsnet.Server
-	ctrl   *kubeController.K8Controller
-	wg     sync.WaitGroup
+	Services    map[string]*Service
+	ts          *tsnet.Server
+	Controllers []Controller
 }
 
 type RouteInfo struct {
@@ -42,147 +20,124 @@ type RouteInfo struct {
 	Stats  utils.TimeSeriesData
 }
 
-func NewRouter(config utils.Config) (*Router, error) {
+func NewRouter() *Router {
 	router := &Router{
-		routes: make(map[string]Route),
-		wg:     sync.WaitGroup{},
+		Services: make(map[string]*Service),
 	}
+	return router
+}
 
-	if !utils.IsEmptyStruct(config.K8Config) {
-		var err error
-		router.ctrl, err = kubeController.NewK8Controller(config.K8Config)
-		if err != nil {
-			log.Fatalf("K8 Controller Error: %v", err)
+func (r *Router) Init(config utils.Config) error {
+	r.UpdateTailscale(config.Tailscale)
+	for _, service := range config.Services {
+		if _, err := r.Create(service); err != nil {
+			return err
 		}
-	}
-
-	router.UpdateTailScale(config.Tailscale)
-	for _, route := range config.Routes {
-		router.AddRoute(route)
-	}
-	router.StartAll()
-	return router, nil
-}
-
-func (r *Router) UpdateTailScale(config utils.TailscaleConfig) {
-	if r.ts != nil {
-		r.Close()
-	}
-	r.ts = new(tsnet.Server)
-	r.ts.AuthKey = config.AuthKey
-	r.ts.Hostname = config.Hostname
-}
-
-func (r *Router) Close() {
-	r.StopAll()
-	r.ts.Close()
-}
-
-func (r *Router) AddRoute(config utils.RouteConfig) (Route, error) {
-	defer r.save()
-	if len(config.Id) == 0 {
-		config.Id = uuid.NewString()
-	}
-	client, _ := r.ts.LocalClient()
-	switch config.Type {
-	case utils.UDP:
-		r.routes[config.Id] = NewNetworkRoute(config, client)
-	case utils.TCP:
-		r.routes[config.Id] = NewNetworkRoute(config, client)
-	case utils.HTTP:
-		r.routes[config.Id] = NewHTTPRoute(config, r.ts)
-	default:
-		return nil, fmt.Errorf("no handler for type %s", config.Type)
-	}
-	return r.routes[config.Id], nil
-}
-
-func (r *Router) UpdateRoute(route utils.RouteConfig) {
-	defer r.save()
-	r.DeleteRoute(route.Id)
-	r.AddRoute(route)
-	r.StopRoute(route.Id)
-}
-
-func (r *Router) DeleteRoute(Id string) {
-	defer r.save()
-	r.StopRoute(Id)
-	delete(r.routes, Id)
-}
-
-func (r *Router) GetRoute(Id string) Route {
-	if route, ok := r.routes[Id]; ok {
-		return route
 	}
 	return nil
 }
 
-func (r *Router) GetRouteByName(name string) (Route, error) {
-	for _, route := range r.routes {
-		if route.Config().Name == name {
-			return route, nil
+func (r *Router) Reload(config utils.Config) {
+	r.UpdateTailscale(config.Tailscale)
+
+	for _, svc := range config.Services {
+		if r.DoesExists(svc.Name) {
+			id := slug.Make(svc.Name)
+			r.Update(id, svc)
+		} else {
+			r.Create(svc)
 		}
 	}
-	return nil, fmt.Errorf("no route found")
-}
 
-func (r *Router) save() {
-	routes := []utils.RouteConfig{}
-	for _, route := range r.routes {
-		routes = append(routes, route.Config())
-	}
-	if r.ctrl != nil {
-		r.ctrl.Update(routes)
-	}
-	utils.SaveRoutes(routes)
-}
-
-func (r *Router) Get(name string) (RouteInfo, error) {
-	if route, ok := r.routes[name]; ok {
-		return RouteInfo{
-			RouteConfig: route.Config(),
-			Status:      route.Status(),
-			Stats:       route.Stats(),
-		}, nil
-	}
-	return RouteInfo{}, fmt.Errorf("route %s not found", name)
-}
-
-func (r *Router) GetAll() []RouteInfo {
-	routes := []RouteInfo{}
-	for key := range r.routes {
-		r, _ := r.Get(key)
-		routes = append(routes, r)
-	}
-	return routes
-}
-
-func (r *Router) StartRoute(name string) {
-	if !r.routes[name].Config().Enabled {
-		return
-	}
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
-		err := r.routes[name].Start()
-		if err != nil {
-			log.Println(err)
+	for key, svc := range r.Services {
+		if !utils.ContainsService(svc.Name, config.Services) {
+			delete(r.Services, key)
 		}
-	}()
+	}
+}
+
+func (r *Router) DoesExists(name string) bool {
+	id := slug.Make(name)
+	_, ok := r.Services[id]
+	return ok
+}
+
+func (r *Router) Create(svc utils.ServiceConfig) (*Service, *RouterError) {
+	if r.DoesExists(svc.Name) {
+		return nil, CustomError(http.StatusConflict, "service already exists unable to load config")
+	}
+	service := NewService(svc, r.ts)
+	r.Services[service.Id] = service
+	return service, nil
+}
+
+func (r *Router) All() []Service {
+	svcs := []Service{}
+	for _, svc := range r.Services {
+		svcs = append(svcs, *svc)
+	}
+	return svcs
+}
+
+func (r *Router) Get(id string) (*Service, *RouterError) {
+	if svc, ok := r.Services[id]; ok {
+		return svc, nil
+	}
+	return nil, NotFoundError("service not found")
+}
+
+func (r *Router) GetHttpRoute(domain string) (*HTTPRoute, *RouterError) {
+	for _, svc := range r.Services {
+		for _, route := range svc.Routes {
+			if route.Config().Type == utils.HTTP {
+				if route.Config().Domain == domain {
+					return route.(*HTTPRoute), nil
+				}
+			}
+		}
+	}
+	return nil, NotFoundError("route not found")
+}
+
+func (r *Router) Update(id string, svc utils.ServiceConfig) (*Service, *RouterError) {
+	existing, ok := r.Services[id]
+	if !ok {
+		return nil, NotFoundError("service not found")
+	}
+	existing.Update(svc, r.ts)
+	if id != existing.Id {
+		r.Services[existing.Id] = existing
+		delete(r.Services, id)
+	}
+	return existing, nil
+}
+
+func (r *Router) Remove(id string) *RouterError {
+	svc, ok := r.Services[id]
+	if !ok {
+		return NotFoundError("service not found")
+	}
+	for _, route := range svc.Routes {
+		route.Stop()
+	}
+	delete(r.Services, id)
+	return nil
+}
+
+func (r *Router) Save() {
+	for _, ctrl := range r.Controllers {
+		ctrl.Update(r)
+	}
 }
 
 func (r *Router) StartAll() {
-	for name := range r.routes {
-		r.StartRoute(name)
+	for _, svc := range r.Services {
+		svc.Start()
 	}
 }
 
-func (r *Router) StopRoute(Id string) {
-	r.routes[Id].Stop()
-}
-
 func (r *Router) StopAll() {
-	for name := range r.routes {
-		r.StopRoute(name)
+	for _, svc := range r.Services {
+		svc.Stop()
 	}
 }

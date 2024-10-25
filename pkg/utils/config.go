@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"crypto/md5"
 	"log"
 	"os"
 	"reflect"
@@ -8,33 +9,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type RouteType string
-
-const (
-	TCP   = RouteType("tcp")
-	UDP   = RouteType("udp")
-	HTTP  = RouteType("http")
-	HTTPS = RouteType("https")
-)
-
-type RouteConfig struct {
-	Id      string    `yaml:"id,omitempty"`
-	Enabled bool      `yaml:"enabled,omitempty"`
-	Name    string    `yaml:"name"`
-	Type    RouteType `yaml:"type"`
-	Port    int       `yaml:"port,omitempty"`
-	Machine Machine   `yaml:"machine"`
-}
-
-type Machine struct {
-	Address string `yaml:"address"`
-	Port    uint16 `yaml:"port"`
-}
-
 type DashboardConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
+	Enabled bool   `yaml:"enabled"`
+	Token   string `yaml:"token"`
 }
 
 type TailscaleConfig struct {
@@ -42,54 +19,60 @@ type TailscaleConfig struct {
 	Hostname string `yaml:"hostnmae"`
 }
 
-type K8Config struct {
-	Namespace    string `yaml:"namespace"`
-	IngressName  string `yaml:"ingress_name"`
-	ServiceName  string `yaml:"service_name"`
-	IngressClass string `yaml:"ingress_class"`
-}
-
 type Config struct {
-	Tailscale TailscaleConfig `yaml:"tailscale"`
-	Dasboard  DashboardConfig `yaml:"dashboard"`
-	K8Config  K8Config        `yaml:"kubernetes,omitempty"`
-	Routes    []RouteConfig   `yaml:"routes"`
+	Tailscale  TailscaleConfig  `yaml:"tailscale"`
+	Dasboard   DashboardConfig  `yaml:"dashboard"`
+	Kubernetes KubernetesConfig `yaml:"kubernetes,omitempty"`
+	Services   []ServiceConfig  `yaml:"services"`
 }
 
-func LoadConfig() Config {
-	configPath := os.Getenv("CONFIG_PATH")
-	if len(configPath) == 0 {
-		configPath = "config.yaml"
+func ConfigHash(path string) [16]byte {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
 	}
+	return md5.Sum(data)
+}
 
+func LoadConfig(configPath string) Config {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
-
-	// Unmarshal the YAML data into the Config struct
 	var config Config
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
+	config.validate()
 	return config
 }
 
-func Save(config Config) {
-	b, err := yaml.Marshal(config)
-	if err != nil {
-		log.Fatalf("error: %v", err)
+func (config *Config) validate() {
+	if IsEmptyStruct(config.Kubernetes) {
+		return
 	}
-	os.WriteFile("config.yaml", b, os.ModeDir)
-}
-
-func SaveRoutes(routes []RouteConfig) {
-	config := LoadConfig()
-	config.Routes = routes
-	Save(config)
+	if len(config.Kubernetes.Ingress.Name) == 0 {
+		config.Kubernetes.Certificate.Name = "warptail-route-ingress"
+		config.Kubernetes.Certificate.SecretName = "warptail-certificate"
+	}
+	if len(config.Kubernetes.Loadbalancer.Name) == 0 {
+		config.Kubernetes.Certificate.Name = "warptail-route-loadbalancer"
+	}
+	if len(config.Kubernetes.Certificate.Name) == 0 {
+		config.Kubernetes.Certificate.Name = "warptail-route-certificate"
+	}
 }
 
 func IsEmptyStruct(s interface{}) bool {
 	return reflect.DeepEqual(s, reflect.Zero(reflect.TypeOf(s)).Interface())
+}
+
+func ContainsService(name string, configs []ServiceConfig) bool {
+	for _, svc := range configs {
+		if svc.Name == name {
+			return true
+		}
+	}
+	return false
 }

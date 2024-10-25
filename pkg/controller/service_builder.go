@@ -1,4 +1,4 @@
-package kubeController
+package controller
 
 import (
 	"context"
@@ -10,13 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-const SERVICE_NAME = "warptail-route-service"
-
 func (ctrl *K8Controller) buildService(routes []utils.RouteConfig) corev1.Service {
 	service := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      SERVICE_NAME,
-			Namespace: ctrl.namespace,
+			Name:      ctrl.Loadbalancer.Name,
+			Namespace: ctrl.Namespace,
 		},
 		Spec: corev1.ServiceSpec{
 			Type: corev1.ServiceTypeLoadBalancer,
@@ -41,14 +39,14 @@ func (ctrl *K8Controller) buildService(routes []utils.RouteConfig) corev1.Servic
 }
 
 func (ctrl *K8Controller) getService() (*corev1.Service, error) {
-	return ctrl.k8Client.CoreV1().Services(ctrl.namespace).Get(context.TODO(), SERVICE_NAME, metav1.GetOptions{})
+	return ctrl.k8Client.CoreV1().Services(ctrl.Namespace).Get(context.TODO(), ctrl.Loadbalancer.Name, metav1.GetOptions{})
 }
 
 func (ctrl *K8Controller) deleteService() error {
 	if _, err := ctrl.getService(); err == nil {
 		return nil
 	}
-	return ctrl.k8Client.CoreV1().Services(ctrl.namespace).Delete(context.TODO(), SERVICE_NAME, metav1.DeleteOptions{})
+	return ctrl.k8Client.CoreV1().Services(ctrl.Namespace).Delete(context.TODO(), ctrl.Loadbalancer.Name, metav1.DeleteOptions{})
 }
 
 func (ctrl *K8Controller) createService(routes []utils.RouteConfig) error {
@@ -61,7 +59,7 @@ func (ctrl *K8Controller) createService(routes []utils.RouteConfig) error {
 	existingService, err := ctrl.getService()
 	if err != nil {
 		fmt.Println("Service does not exist, creating a new one...")
-		_, err := ctrl.k8Client.CoreV1().Services(ctrl.namespace).Create(context.TODO(), &service, metav1.CreateOptions{})
+		_, err := ctrl.k8Client.CoreV1().Services(ctrl.Namespace).Create(context.TODO(), &service, metav1.CreateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to create Service: %v", err)
 		}
@@ -69,7 +67,7 @@ func (ctrl *K8Controller) createService(routes []utils.RouteConfig) error {
 	}
 	fmt.Println("Service exists, updating it...")
 	existingService.Spec = service.Spec
-	_, err = ctrl.k8Client.CoreV1().Services(ctrl.namespace).Update(context.TODO(), existingService, metav1.UpdateOptions{})
+	_, err = ctrl.k8Client.CoreV1().Services(ctrl.Namespace).Update(context.TODO(), existingService, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to update Service: %v", err)
 	}

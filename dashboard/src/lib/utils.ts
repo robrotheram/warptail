@@ -31,8 +31,8 @@ export const formatBytes = (bytes: number): string =>{
  */
 function interpolateProxyStats(prev: ProxyStats, next: ProxyStats, fraction: number): ProxyStats {
   return {
-      Sent: prev.Sent + (next.Sent - prev.Sent) * fraction,
-      Received: prev.Received + (next.Received - prev.Received) * fraction
+      sent: prev.sent + (next.sent - prev.sent) * fraction,
+      received: prev.received + (next.received - prev.received) * fraction
   };
 }
 
@@ -50,17 +50,17 @@ function applyMovingAverage(points: TimeSeriesPoint[], windowSize: number): Time
 
       // Calculate the average over the window
       for (let j = Math.max(0, i - windowSize + 1); j <= i; j++) {
-          avgSent += points[j].Value.Sent;
-          avgReceived += points[j].Value.Received;
+          avgSent += points[j].value.sent;
+          avgReceived += points[j].value.received;
           count++;
       }
 
       // Add the averaged point
       smoothedPoints.push({
-          Timestamp: points[i].Timestamp,
-          Value: {
-              Sent: avgSent / count,
-              Received: avgReceived / count
+          timestamp: points[i].timestamp,
+          value: {
+              sent: avgSent / count,
+              received: avgReceived / count
           }
       });
   }
@@ -74,10 +74,10 @@ function applyMovingAverage(points: TimeSeriesPoint[], windowSize: number): Time
 export function getLast10MinutesData(points: TimeSeriesPoint[]): TimeSeriesPoint[] {
   if (points.length === 0) return [];
 
-  points.map(point => {point.Timestamp = new Date(point.Timestamp)});
+  points.map(point => {point.timestamp = new Date(point.timestamp)});
   const now = new Date();
   const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000); // Current time minus 10 minutes
-  const filteredPoints = points.filter(point => point.Timestamp >= tenMinutesAgo);
+  const filteredPoints = points.filter(point => point.timestamp >= tenMinutesAgo);
   
   if (filteredPoints.length === 0) return [];
 
@@ -89,18 +89,18 @@ export function getLast10MinutesData(points: TimeSeriesPoint[]): TimeSeriesPoint
   for (let i = 1; i < filteredPoints.length; i++) {
       const prevPoint = filteredPoints[i - 1];
       const currentPoint = filteredPoints[i];
-      const timeDiff = currentPoint.Timestamp.getTime() - prevPoint.Timestamp.getTime();
+      const timeDiff = currentPoint.timestamp.getTime() - prevPoint.timestamp.getTime();
       if (timeDiff > interval) {
           const numMissingPoints = Math.floor(timeDiff / interval);
 
           for (let j = 1; j <= numMissingPoints; j++) {
-              const interpolatedTimestamp = new Date(prevPoint.Timestamp.getTime() + j * interval);
+              const interpolatedTimestamp = new Date(prevPoint.timestamp.getTime() + j * interval);
               const fraction = j / numMissingPoints; // Fraction of how far between the points we are
-              const interpolatedValue = interpolateProxyStats(prevPoint.Value, currentPoint.Value, fraction);
+              const interpolatedValue = interpolateProxyStats(prevPoint.value, currentPoint.value, fraction);
 
               smoothPoints.push({
-                  Timestamp: interpolatedTimestamp,
-                  Value: interpolatedValue
+                timestamp: interpolatedTimestamp,
+                  value: interpolatedValue
               });
           }
       }

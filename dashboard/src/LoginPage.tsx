@@ -13,7 +13,6 @@ import { Alert, AlertTitle, AlertDescription } from './components/ui/alert'
 
 
 export const LoginPage: React.FC = () => {
-  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [alert, setAlert] = useState<string>()
   const { login } = useAuth()
@@ -31,10 +30,7 @@ export const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    authenticate.mutate({
-      username,
-      password
-    })
+    authenticate.mutate({password})
   }
 
   return (
@@ -54,14 +50,6 @@ export const LoginPage: React.FC = () => {
         </Alert>}
 
         <form onSubmit={handleSubmit} className='flex flex-col space-y-4'>
-          <div>
-            <Label>Username: </Label>
-            <Input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </div>
           <div>
             <Label>Password: </Label>
             <Input

@@ -51,6 +51,9 @@ func (route *NetworkRoute) Update(config utils.RouteConfig) error {
 }
 
 func (route *NetworkRoute) Stop() error {
+	if route.status != RUNNING {
+		return fmt.Errorf("route not running")
+	}
 	route.status = STOPPING
 	close(route.quit)
 	<-route.exited
@@ -155,55 +158,18 @@ func (route *NetworkRoute) copy(from, to io.ReadWriter, wg *sync.WaitGroup) {
 	}
 }
 
-// func (route *NetworkRoute) handle(src io.Reader, dst io.Writer) {
-// 	var err error
-// 	proxy, err := route.client.UserDial(context.Background(), string(route.config.Type), route.config.Machine.Address, route.config.Machine.Port)
-// 	if err != nil {
-// 		log.Printf("remote connection failed: %v", err)
-// 		return
-// 	}
-// 	defer proxy.Close()
-// 	go route.send(src, proxy)
-// 	go route.receive(proxy, dst)
-// 	<-route.errsig
-// }
-
-// func (route *NetworkRoute) send(src io.Reader, dst io.Writer) {
-// 	buff := make([]byte, 0xffff)
-// 	for {
-// 		data := route.pipe(src, dst, buff)
-// 		route.data.LogSent(uint64(data))
-// 	}
-// }
-
-// func (route *NetworkRoute) receive(src io.Reader, dst io.Writer) {
-// 	buff := make([]byte, 0xffff)
-// 	for {
-// 		data := route.pipe(src, dst, buff)
-// 		route.data.LogRecived(uint64(data))
-// 	}
-// }
-
-// func (route *NetworkRoute) pipe(src io.Reader, dst io.Writer, buff []byte) uint64 {
-// 	n, err := src.Read(buff)
-// 	if err != nil {
-// 		route.err("Read failed '%s'\n", err)
-// 		return 0
-// 	}
-// 	b := buff[:n]
-// 	n, err = dst.Write(b)
-// 	if err != nil {
-// 		route.err("Write failed '%s'\n", err)
-// 		return 0
-// 	}
-// 	return uint64(n)
-// }
-
-// func (route *NetworkRoute) err(s string, err error) {
-// 	log.Println(s, err)
-// 	if route.erred {
-// 		return
-// 	}
-// 	route.errsig <- true
-// 	route.erred = true
-// }
+func (route *NetworkRoute) Ping() time.Duration {
+	if route.status != RUNNING {
+		return -1
+	}
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*1))
+	defer cancel()
+	conn, err := route.client.UserDial(ctx, string(route.config.Type), route.config.Machine.Address, route.config.Machine.Port)
+	if err != nil {
+		return -1
+	}
+	defer conn.Close()
+	latency := time.Since(start)
+	return latency / time.Millisecond
+}

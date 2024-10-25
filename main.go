@@ -2,19 +2,49 @@
 package main
 
 import (
+	"embed"
 	"log"
+	"os"
 	"warptail/pkg/api"
+	"warptail/pkg/controller"
 	"warptail/pkg/router"
 	"warptail/pkg/utils"
 )
 
-func main() {
-	config := utils.LoadConfig()
-	r, err := router.NewRouter(config)
-	if err != nil {
-		log.Fatalf("unable to start %v", err)
+//go:embed dashboard/dist
+var ui embed.FS
+
+var configPath = os.Getenv("CONFIG_PATH")
+var Router *router.Router
+var config utils.Config
+
+func buildControllers(cfg utils.Config) []router.Controller {
+	ctrls := []router.Controller{}
+	if ctrl, err := controller.NewK8Controller(cfg.Kubernetes); err == nil {
+		ctrls = append(ctrls, ctrl)
 	}
-	defer r.Close()
-	server := api.NewApi(r, config.Dasboard)
-	server.Start(":8081")
+	if ctrl, err := controller.NewConfigController(configPath, Router); err == nil {
+		ctrls = append(ctrls, ctrl)
+	}
+	return ctrls
+}
+
+func init() {
+	if len(configPath) == 0 {
+		configPath = "config.yaml"
+	}
+	config = utils.LoadConfig(configPath)
+	Router = router.NewRouter()
+	Router.Controllers = buildControllers(config)
+}
+
+func main() {
+	err := Router.Init(config)
+	if err != nil {
+		log.Fatalf("Unable to Start router %w", err)
+	}
+	Router.StartAll()
+	defer Router.StopAll()
+	server := api.NewApi(Router, config.Dasboard, ui)
+	server.Start(":8001")
 }

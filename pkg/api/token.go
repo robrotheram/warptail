@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -47,6 +48,7 @@ func GenerateToken(username string) (string, error) {
 
 // Validate JWT token
 func ValidateToken(tokenString string) (*jwt.Token, error) {
+	tokenString = strings.ReplaceAll(tokenString, "Bearer ", "")
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method")
@@ -58,7 +60,6 @@ func ValidateToken(tokenString string) (*jwt.Token, error) {
 
 func (api *api) loginHandler(w http.ResponseWriter, r *http.Request) {
 	var loginData struct {
-		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 
@@ -69,13 +70,12 @@ func (api *api) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Example: Replace this with your actual authentication logic
-	if loginData.Username == api.config.Username && loginData.Password == api.config.Password {
-		token, err := GenerateToken(loginData.Username)
+	if loginData.Password == api.config.Token {
+		token, err := GenerateToken(api.config.Token)
 		if err != nil {
 			http.Error(w, "Could not generate token", http.StatusInternalServerError)
 			return
 		}
-
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"authorization_token": token})
 	} else {

@@ -1,4 +1,4 @@
-package kubeController
+package controller
 
 import (
 	"context"
@@ -10,21 +10,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const CERT_NAME = "warptail-route-certificate"
-
 func (ctrl *K8Controller) buildCertificate(routes []utils.RouteConfig) certmanagerv1.Certificate {
 	DNSNames := []string{}
 	for _, route := range routes {
-		DNSNames = append(DNSNames, route.Name)
+		DNSNames = append(DNSNames, route.Domain)
 	}
 
 	return certmanagerv1.Certificate{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      CERT_NAME,
-			Namespace: ctrl.namespace,
+			Name:      ctrl.Certificate.Name,
+			Namespace: ctrl.Namespace,
 		},
 		Spec: certmanagerv1.CertificateSpec{
-			SecretName: SecretName,
+			SecretName: ctrl.Certificate.SecretName,
 			DNSNames:   DNSNames,
 			IssuerRef: cmmeta.ObjectReference{
 				Name: "letsencrypt-prod",
@@ -34,14 +32,14 @@ func (ctrl *K8Controller) buildCertificate(routes []utils.RouteConfig) certmanag
 	}
 }
 func (ctrl *K8Controller) getCertificate() (*certmanagerv1.Certificate, error) {
-	return ctrl.cmclient.CertmanagerV1().Certificates(ctrl.namespace).Get(context.TODO(), CERT_NAME, metav1.GetOptions{})
+	return ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Get(context.TODO(), ctrl.Certificate.Name, metav1.GetOptions{})
 }
 
 func (ctrl *K8Controller) deleteCertificate() error {
 	if _, err := ctrl.getCertificate(); err == nil {
 		return nil
 	}
-	return ctrl.cmclient.CertmanagerV1().Certificates(ctrl.namespace).Delete(context.TODO(), CERT_NAME, metav1.DeleteOptions{})
+	return ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Delete(context.TODO(), ctrl.Certificate.Name, metav1.DeleteOptions{})
 }
 
 func (ctrl *K8Controller) createCertificate(routes []utils.RouteConfig) error {
@@ -53,7 +51,7 @@ func (ctrl *K8Controller) createCertificate(routes []utils.RouteConfig) error {
 	existingCertificate, err := ctrl.getCertificate()
 	if err != nil {
 		fmt.Println("Certficate does not exist, creating a new one...")
-		_, err := ctrl.cmclient.CertmanagerV1().Certificates(ctrl.namespace).Create(context.TODO(), &certificate, metav1.CreateOptions{})
+		_, err := ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Create(context.TODO(), &certificate, metav1.CreateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to create Certficate: %v", err)
 		}
@@ -61,7 +59,7 @@ func (ctrl *K8Controller) createCertificate(routes []utils.RouteConfig) error {
 	}
 	fmt.Println("Certficate exists, updating it...")
 	existingCertificate.Spec = certificate.Spec
-	_, err = ctrl.cmclient.CertmanagerV1().Certificates(ctrl.namespace).Update(context.TODO(), existingCertificate, metav1.UpdateOptions{})
+	_, err = ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Update(context.TODO(), existingCertificate, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to update Ingress: %v", err)
 	}
