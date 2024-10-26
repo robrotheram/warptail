@@ -42,5 +42,5 @@ func main() {
 	Router.StartAll()
 	defer Router.StopAll()
 	server := api.NewApi(Router, config.Dasboard)
-	server.Start(":8001")
+	server.Start(config.Dasboard.Port)
 }

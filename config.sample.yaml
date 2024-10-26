@@ -3,6 +3,7 @@ tailscale:
   hostnmae: "TS_HOSTNAME"
 dashboard:
   enabled: true
+  port: ":8081"
   password: CHANGEME
 services:
 - name: test

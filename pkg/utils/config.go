@@ -12,6 +12,7 @@ import (
 type DashboardConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Token   string `yaml:"token"`
+	Port    string `yaml:"port"`
 }
 
 type TailscaleConfig struct {
@@ -49,6 +50,9 @@ func LoadConfig(configPath string) Config {
 }
 
 func (config *Config) validate() {
+	if config.Dasboard.Enabled && config.Dasboard.Port == "" {
+		config.Dasboard.Port = ":8081"
+	}
 	if IsEmptyStruct(config.Kubernetes) {
 		return
 	}
