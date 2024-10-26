@@ -1,7 +1,6 @@
 package api
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -59,7 +58,7 @@ func writeResponse(w http.ResponseWriter, statusCode int, data any) {
 	}
 }
 
-func NewApi(router *router.Router, config utils.DashboardConfig, ui embed.FS) *api {
+func NewApi(router *router.Router, config utils.DashboardConfig) *api {
 	api := api{
 		Router: router,
 		Mux:    chi.NewRouter(),

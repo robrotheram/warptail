@@ -2,7 +2,6 @@
 package main
 
 import (
-	"embed"
 	"log"
 	"os"
 	"warptail/pkg/api"
@@ -10,9 +9,6 @@ import (
 	"warptail/pkg/router"
 	"warptail/pkg/utils"
 )
-
-//go:embed dashboard/dist
-var ui embed.FS
 
 var configPath = os.Getenv("CONFIG_PATH")
 var Router *router.Router
@@ -45,6 +41,6 @@ func main() {
 	}
 	Router.StartAll()
 	defer Router.StopAll()
-	server := api.NewApi(Router, config.Dasboard, ui)
+	server := api.NewApi(Router, config.Dasboard)
 	server.Start(":8001")
 }

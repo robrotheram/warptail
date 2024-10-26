@@ -13,9 +13,11 @@ import (
 )
 
 type HTTPRoute struct {
-	config utils.RouteConfig
-	status RouterStatus
-	data   *utils.TimeSeries
+	config   utils.RouteConfig
+	status   RouterStatus
+	data     *utils.TimeSeries
+	latency  time.Duration
+	heatbeat time.Ticker
 	*http.Client
 }
 
@@ -34,6 +36,7 @@ func (route *HTTPRoute) Update(config utils.RouteConfig) error {
 }
 func (route *HTTPRoute) Start() error {
 	route.status = RUNNING
+	go route.heartbeat(5 * time.Second)
 	return nil
 }
 func (route *HTTPRoute) Stop() error {
@@ -88,22 +91,32 @@ func (route *HTTPRoute) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (route *HTTPRoute) heartbeat(timeout time.Duration) {
+	route.heatbeat = *time.NewTicker(timeout)
+	go func() {
+		for range route.heatbeat.C {
+			if route.status != RUNNING {
+				route.latency = -1
+				route.heatbeat.Stop()
+			}
+			route.Client.Timeout = 5 * time.Second
+			start := time.Now()
+			url, err := route.getUrl()
+			if err != nil {
+				route.latency = -1 // Unable to reach the server
+				continue
+			}
+			resp, err := route.Get(url.String())
+			if err != nil {
+				route.latency = -1 // Unable to reach the server
+				continue
+			}
+			resp.Body.Close()
+			route.latency = time.Since(start) / time.Millisecond
+		}
+	}()
+}
+
 func (route *HTTPRoute) Ping() time.Duration {
-	if route.status != RUNNING {
-		return -1
-	}
-	route.Client.Timeout = 5 * time.Second
-	start := time.Now()
-	url, err := route.getUrl()
-	if err != nil {
-		return -1 // Unable to reach the server
-	}
-	resp, err := route.Get(url.String())
-	if err != nil {
-		return -1 // Unable to reach the server
-	}
-	defer resp.Body.Close()
-	latency := time.Since(start)
-	fmt.Println(latency)
-	return latency / time.Millisecond
+	return route.latency
 }

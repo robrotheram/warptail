@@ -21,6 +21,9 @@ type NetworkRoute struct {
 	listener *net.TCPListener
 	quit     chan bool
 	exited   chan bool
+
+	latency  time.Duration
+	heatbeat time.Ticker
 }
 
 func NewNetworkRoute(config utils.RouteConfig, client *tailscale.LocalClient) *NetworkRoute {
@@ -66,6 +69,7 @@ func (route *NetworkRoute) Start() error {
 	if route.status == RUNNING {
 		route.Stop()
 	}
+	go route.heartbeat(5 * time.Second)
 	route.status = STARTING
 	laddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%d", route.config.Port))
 	if err != nil {
@@ -158,18 +162,29 @@ func (route *NetworkRoute) copy(from, to io.ReadWriter, wg *sync.WaitGroup) {
 	}
 }
 
+func (route *NetworkRoute) heartbeat(timeout time.Duration) {
+	route.heatbeat = *time.NewTicker(timeout)
+	go func() {
+		for range route.heatbeat.C {
+			if route.status != RUNNING {
+				route.latency = -1
+				route.heatbeat.Stop()
+				continue
+			}
+			start := time.Now()
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*1))
+			conn, err := route.client.UserDial(ctx, string(route.config.Type), route.config.Machine.Address, route.config.Machine.Port)
+			cancel()
+			if err != nil {
+				route.latency = -1
+				continue
+			}
+			conn.Close()
+			route.latency = time.Since(start) / time.Millisecond
+		}
+	}()
+}
+
 func (route *NetworkRoute) Ping() time.Duration {
-	if route.status != RUNNING {
-		return -1
-	}
-	start := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*1))
-	defer cancel()
-	conn, err := route.client.UserDial(ctx, string(route.config.Type), route.config.Machine.Address, route.config.Machine.Port)
-	if err != nil {
-		return -1
-	}
-	defer conn.Close()
-	latency := time.Since(start)
-	return latency / time.Millisecond
+	return route.latency
 }
