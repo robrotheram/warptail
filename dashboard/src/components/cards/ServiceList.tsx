@@ -94,7 +94,7 @@ export const RouteList = () => {
                   return <TableRow onClick={() => navigate({ to: `/routes/${svc.id}` })} className='cursor-pointer' key={svc.id}>
                     <TableCell className="font-medium">{svc.name}</TableCell>
                     <TableCell>
-                      {svc.enabled ? `${svc.latency} ms` : "n/a"}
+                      {svc.enabled && svc.latency ? `${svc.latency} ms` : "n/a"}
                     </TableCell>
                     <TableCell>
                       <Badge variant={`${svc.enabled ? "success" : "destructive"}`}>{`${svc.enabled ? "Active" : "Inactive"}`}</Badge>
