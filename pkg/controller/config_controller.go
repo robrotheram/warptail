@@ -37,7 +37,11 @@ func (ctrl *ConfigCtrl) Save(config utils.Config) {
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
-	os.WriteFile("config.yaml", b, os.ModeDir)
+	err = os.WriteFile(ctrl.path, b, os.ModeDir)
+	if err != nil {
+		log.Println("unable to save config: %w", err)
+	}
+	log.Println("saved config")
 }
 
 func (ctrl *ConfigCtrl) Update(router *router.Router) {

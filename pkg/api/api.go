@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type apiCtx string
@@ -67,7 +68,7 @@ func NewApi(router *router.Router, config utils.DashboardConfig) *api {
 	// Add middlewares
 	api.Mux.Use(middleware.RequestID)
 	api.Mux.Use(middleware.RealIP)
-	api.Mux.Use(middleware.Logger)
+	// api.Mux.Use(middleware.Logger)
 	api.Mux.Use(middleware.Recoverer)
 	api.Mux.Use(middleware.Compress(5))
 
@@ -89,7 +90,7 @@ func NewApi(router *router.Router, config utils.DashboardConfig) *api {
 			StaticPath: "./dashboard/dist",
 			IndexPath:  "index.html",
 		}
-
+		api.Mux.Handle("/metrics", promhttp.Handler())
 		api.Mux.Get("/*", spa.ServeHTTP)
 		api.Mux.Post("/auth/login", api.loginHandler)
 		api.Mux.Group(func(r chi.Router) {
@@ -111,6 +112,7 @@ func NewApi(router *router.Router, config utils.DashboardConfig) *api {
 			})
 		})
 	}
+	go api.startMetrics()
 	return &api
 }
 

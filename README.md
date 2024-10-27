@@ -146,6 +146,37 @@ See `manifests` folder for example kubernetes manifiests
 
 Once deployed, WarpTail will automatically configure ingress and route traffic through node-ports. Access your exposed services through your Kubernetes cluster's external IP using the node-port (e.g., `http://<cluster-ip>:30080` for HTTP).
 
+
+Here's a README section for documenting the Prometheus metrics exposed by the Golang service **Warptail**:
+
+---
+
+## Prometheus Metrics
+
+**Warptail** exposes a set of Prometheus metrics for monitoring its services and routes. These metrics are available at the `/metrics` endpoint.
+
+#### Custom Metrics
+
+Below are the custom metrics available for Warptail, along with their descriptions and types:
+
+- **`warptail_route_status`** (`gauge`):  
+  Indicates the status of various routes in the Warptail service.
+
+- **`warptail_service_enabled`** (`gauge`):  
+  Shows if a particular Warptail service is enabled (1 if enabled, 0 otherwise).
+
+- **`warptail_service_latency`** (`gauge`):  
+  Displays the latency for the Warptail service in milliseconds.
+
+- **`warptail_service_route_latency`** (`gauge`):  
+  Shows the latency for specific routes in the Warptail service.
+
+- **`warptail_service_total_received`** (`gauge`):  
+  Tracks the total amount of data received by a specific Warptail service.
+
+- **`warptail_service_total_sent`** (`gauge`):  
+  Tracks the total amount of data sent by a specific Warptail service.
+
 ---
 
 ## Contributing
