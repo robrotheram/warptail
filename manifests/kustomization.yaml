@@ -7,11 +7,11 @@ resources:
 images:
 - name: app-image
   newName: ghcr.io/robrotheram/warptail
-  newTag: sha-77f025f
+  newTag: sha-593cfdc
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: your-namespace
 configMapGenerator:
-- name: warptail-configmap
-  files:
-      - config.yaml=config.yaml
+- files:
+  - config.yaml=config.yaml
+  name: warptail-configmap
