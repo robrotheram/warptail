@@ -1,6 +1,6 @@
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { HeaderNav, SideNav } from "../Nav"
-import { useAuth } from '@/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import { LoginPage } from '@/LoginPage';
 
 

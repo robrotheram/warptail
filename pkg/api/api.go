@@ -22,7 +22,7 @@ const SvcContext = apiCtx("service")
 type api struct {
 	*router.Router
 	Mux    *chi.Mux
-	config utils.DashboardConfig
+	config utils.Config
 }
 
 func WriteErrorResponse(w http.ResponseWriter, err *router.RouterError) {
@@ -59,7 +59,7 @@ func writeResponse(w http.ResponseWriter, statusCode int, data any) {
 	}
 }
 
-func NewApi(router *router.Router, config utils.DashboardConfig) *api {
+func NewApi(router *router.Router, config utils.Config) *api {
 	api := api{
 		Router: router,
 		Mux:    chi.NewRouter(),
@@ -85,13 +85,11 @@ func NewApi(router *router.Router, config utils.DashboardConfig) *api {
 		fmt.Fprintln(w, "ok")
 	})
 
-	if config.Enabled {
-		spa := SPAHandler{
-			StaticPath: "./dashboard/dist",
-			IndexPath:  "index.html",
-		}
-		api.Mux.Handle("/metrics", promhttp.Handler())
-		api.Mux.Get("/*", spa.ServeHTTP)
+	//Handle Metrics
+	api.Mux.Handle("/metrics", promhttp.Handler())
+	go api.startMetrics()
+
+	if config.Dasboard.Enabled {
 		api.Mux.Post("/auth/login", api.loginHandler)
 		api.Mux.Group(func(r chi.Router) {
 			r.Use(TokenAuthMiddleware)
@@ -111,8 +109,8 @@ func NewApi(router *router.Router, config utils.DashboardConfig) *api {
 				r.Post("/start", api.handleStartRoute)
 			})
 		})
+		api.handleUi()
 	}
-	go api.startMetrics()
 	return &api
 }
 
@@ -133,4 +131,19 @@ func (api *api) proxy(next http.Handler) http.Handler {
 func (api *api) Start(addr string) {
 	log.Println("Starting API on http://localhost" + addr)
 	log.Println(http.ListenAndServe(addr, api.Mux))
+}
+
+func (api *api) handleUi() {
+	spa := SPAHandler{
+		StaticPath: "./dashboard/dist",
+		IndexPath:  "index.html",
+	}
+
+	api.Mux.Get("/config", func(w http.ResponseWriter, r *http.Request) {
+		config := make(map[string]any)
+		config["EDIT_MODE"] = utils.IsEmptyStruct(api.config.Kubernetes)
+		WriteData(w, config)
+	})
+
+	api.Mux.Get("/*", spa.ServeHTTP)
 }

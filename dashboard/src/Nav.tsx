@@ -4,7 +4,7 @@ import { SheetTrigger, SheetContent, Sheet } from "./components/ui/sheet"
 import { MenuIcon, NetworkIcon, SettingsIcon } from "./Icons"
 import { Link, useNavigate } from "@tanstack/react-router"
 import React from "react"
-import { useAuth } from "./AuthContext"
+import { useAuth } from "./context/AuthContext"
 
 interface LinksProps {
   to: string;

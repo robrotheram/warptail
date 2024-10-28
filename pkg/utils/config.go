@@ -2,6 +2,8 @@ package utils
 
 import (
 	"crypto/md5"
+	"crypto/rand"
+	"fmt"
 	"log"
 	"os"
 	"reflect"
@@ -53,18 +55,23 @@ func (config *Config) validate() {
 	if config.Dasboard.Enabled && config.Dasboard.Port == "" {
 		config.Dasboard.Port = ":8081"
 	}
-	if IsEmptyStruct(config.Kubernetes) {
-		return
+
+	if config.Dasboard.Enabled && config.Dasboard.Token == "" {
+		config.Dasboard.Token = tokenGenerator(24)
+		fmt.Printf("New Dashboard Token: %s", config.Dasboard.Token)
 	}
-	if len(config.Kubernetes.Ingress.Name) == 0 {
-		config.Kubernetes.Certificate.Name = "warptail-route-ingress"
-		config.Kubernetes.Certificate.SecretName = "warptail-certificate"
-	}
-	if len(config.Kubernetes.Loadbalancer.Name) == 0 {
-		config.Kubernetes.Certificate.Name = "warptail-route-loadbalancer"
-	}
-	if len(config.Kubernetes.Certificate.Name) == 0 {
-		config.Kubernetes.Certificate.Name = "warptail-route-certificate"
+
+	if !IsEmptyStruct(config.Kubernetes) {
+		if len(config.Kubernetes.Ingress.Name) == 0 {
+			config.Kubernetes.Certificate.Name = "warptail-route-ingress"
+			config.Kubernetes.Certificate.SecretName = "warptail-certificate"
+		}
+		if len(config.Kubernetes.Loadbalancer.Name) == 0 {
+			config.Kubernetes.Certificate.Name = "warptail-route-loadbalancer"
+		}
+		if len(config.Kubernetes.Certificate.Name) == 0 {
+			config.Kubernetes.Certificate.Name = "warptail-route-certificate"
+		}
 	}
 }
 
@@ -79,4 +86,10 @@ func ContainsService(name string, configs []ServiceConfig) bool {
 		}
 	}
 	return false
+}
+
+func tokenGenerator(length int) string {
+	b := make([]byte, length)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
 }

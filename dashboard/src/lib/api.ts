@@ -13,6 +13,11 @@ export enum RouterType {
     UDP = "udp",
 }
 
+export interface Config {
+    EDIT_MODE: boolean
+}
+
+
 export interface CreateService {
     name: string
     routes: Route[]
@@ -101,6 +106,13 @@ const getAuth = () => {
 export const login = async (login: Login): Promise<LoginToken> => {
     const response = await axios.post(`${AUTH_URL}/login`, login);
     if (response.status !== 200) throw new Error("Unauthorized");
+    return response.data;
+}
+
+export const getConfig = async (): Promise<Config> => {
+    const response = await axios.get(`${BASE_URL}/config`, {
+        headers: getAuth(),
+    });
     return response.data;
 }
 

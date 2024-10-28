@@ -10,11 +10,11 @@ import { Input } from '../ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
+import { useConfig } from '@/context/ConfigContext'
 
 
 export const CreateServiceModel = () => {
   const navigate = useNavigate({ from: `/` })
-
   const create = useMutation({
     mutationFn: createService,
     onSuccess: (data) => { navigate({ to: `/routes/${data.id}/edit` }) },
@@ -54,6 +54,7 @@ export const CreateServiceModel = () => {
 
 export const RouteList = () => {
     const navigate = useNavigate({ from: '/' })
+    const {EDIT_MODE:canEdit} = useConfig()
     const { isPending, error, data, isLoading } = useQuery({
       queryKey: ['repoData'],
       queryFn: getServices,
@@ -77,7 +78,7 @@ export const RouteList = () => {
             <CardTitle>Services</CardTitle>
             <CardDescription>Manage your load balancer routes.</CardDescription>
           </div>
-          <CreateServiceModel />
+          {canEdit &&<CreateServiceModel />}
         </CardHeader>
         <CardContent>
           <Table>

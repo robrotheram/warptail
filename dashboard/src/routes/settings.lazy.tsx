@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useConfig } from '@/context/ConfigContext'
 import { getTSConfig, Tailsale, updateTSConfig } from '@/lib/api'
 import ProtectedRoute from '@/Protected'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -14,6 +15,7 @@ type TailScaleFormProps = {
 }
 const TailScaleForm = ({ config }: TailScaleFormProps) => {
     const [editMode, setEditMode] = useState(false)
+    const {EDIT_MODE:canEdit} = useConfig()
     const [editedRoute, setEditedRoute] = useState<Tailsale>(config)
     const queryClient = useQueryClient()
     const update = useMutation({
@@ -72,14 +74,13 @@ const TailScaleForm = ({ config }: TailScaleFormProps) => {
         <CardFooter
             className={`flex justify-end`}
         >
-
-
-            {editMode ? (
+            {editMode && (
                 <Button onClick={handleSave} className="w-24">
                     <Save className="mr-2 h-4 w-4" />
                     Save
                 </Button>
-            ) : (
+            )}
+            {!editMode && canEdit && (
                 <Button onClick={handleEdit} className="w-24">
                     <Edit className="mr-2 h-4 w-4" />
                     Edit

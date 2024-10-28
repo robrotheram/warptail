@@ -70,8 +70,8 @@ func (api *api) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Example: Replace this with your actual authentication logic
-	if loginData.Password == api.config.Token {
-		token, err := GenerateToken(api.config.Token)
+	if loginData.Password == api.config.Dasboard.Token {
+		token, err := GenerateToken(api.config.Dasboard.Token)
 		if err != nil {
 			http.Error(w, "Could not generate token", http.StatusInternalServerError)
 			return

@@ -25,6 +25,7 @@ import { RouteEditCard } from './RouteEditCard'
 import { RouteStatusCard } from './RouteStatusCard'
 import { RouterChart } from './ChartCard'
 import { ErrorCard } from './ErrorCard'
+import { useConfig } from '@/context/ConfigContext'
 
 
 
@@ -34,7 +35,8 @@ type ServiceCardProps = {
   }
 export const ServiceCard = ({id, edit}:ServiceCardProps) => {
   const navigate = useNavigate()
-  
+  const {EDIT_MODE:canEdit} = useConfig()
+
   const queryClient = useQueryClient()
   const { isPending, isError, data, isLoading } = useQuery({
     queryKey: ['route', id ],
@@ -158,23 +160,24 @@ export const ServiceCard = ({id, edit}:ServiceCardProps) => {
               }
             </Button>
             }
-            {edit && (
+            {edit && canEdit && (
               <Button onClick={()=>navigate({ to: `/routes/${data.id}` })} variant="secondary" className="w-full">
                 Cancel
               </Button>
             )}
-            {edit && (
+            {edit && canEdit && (
               <Button onClick={handleDelete} variant="destructive" className="w-full">
                 <Trash className="mr-2 h-4 w-4" />
                 Delete
               </Button>
             )}
-            {edit ? (
+            {edit && canEdit && (
               <Button onClick={handleSave} className="w-full">
                 <Save className="mr-2 h-4 w-4" />
                 Save
               </Button>
-            ) : (
+            )}
+            {!edit && canEdit && (
               <Button onClick={()=>navigate({ to: `/routes/${data.id}/edit` })} className="w-full">
                 <Edit className="mr-2 h-4 w-4" />
                 Edit

@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { useAuth } from './AuthContext';
+import { useAuth } from './context/AuthContext';
 import {  useNavigate } from '@tanstack/react-router';
 
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
