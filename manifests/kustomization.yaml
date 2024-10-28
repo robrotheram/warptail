@@ -11,7 +11,11 @@ images:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: your-namespace
-configMapGenerator:
-- files:
-  - config.yaml=config.yaml
-  name: warptail-configmap
+patches:
+  - target:
+      kind: Deployment
+      name: warptail-deployment
+    patch: |
+      - op: replace
+        path: /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt
+        value: "{{datetime}}"
