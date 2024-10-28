@@ -9,8 +9,6 @@ spec:
       app: warptail
   template:
     metadata:
-      annotations:
-        - kubectl.kubernetes.io/restartedAt: ""
       labels:
         app: warptail
     spec:
