@@ -28,7 +28,7 @@ spec:
       volumes:
         - name: config-volume
           configMap:
-            name: warptail-configmap-<hash>
+            name: warptail-configmap
             items:
               - key: config.yaml
                 path: config.yaml
