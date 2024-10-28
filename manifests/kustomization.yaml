@@ -17,5 +17,5 @@ patches:
       name: warptail-deployment
     patch: |
       - op: replace
-        path: /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt
+        path: /spec/template/metadata/annotations/kubectl.kubernetes.io.restartedAt
         value: "{{datetime}}"
