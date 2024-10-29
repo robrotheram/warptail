@@ -6,7 +6,6 @@ import "./main.css"
 import { routeTree } from './routeTree.gen'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './context/AuthContext'
-import { ConfigProvider } from './context/ConfigContext'
 
 // Create a new router instance
 const router = createRouter({ routeTree })
