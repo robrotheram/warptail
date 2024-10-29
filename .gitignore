@@ -4,3 +4,5 @@ node_modules
 __debug*
 config.yaml
 warptail
+docker-compose.yaml
+prometheus.yaml

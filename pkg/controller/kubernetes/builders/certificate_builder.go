@@ -1,4 +1,4 @@
-package controller
+package builders
 
 import (
 	"context"
@@ -7,10 +7,31 @@ import (
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	cmclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
+	"golang.org/x/exp/slog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 )
 
-func (ctrl *K8Controller) buildCertificate(routes []utils.RouteConfig) certmanagerv1.Certificate {
+type CertifcationBuilder struct {
+	Namespace   string
+	Certificate utils.Certificate
+	cmclient    *cmclientset.Clientset
+}
+
+func NewCertifcationBuilder(config utils.KubernetesConfig, k8cfg *rest.Config) *CertifcationBuilder {
+	cmclient, err := cmclientset.NewForConfig(k8cfg)
+	if err != nil {
+		return nil
+	}
+	return &CertifcationBuilder{
+		Namespace:   config.Namespace,
+		Certificate: config.Certificate,
+		cmclient:    cmclient,
+	}
+}
+
+func (ctrl *CertifcationBuilder) build(routes []utils.RouteConfig) certmanagerv1.Certificate {
 	DNSNames := []string{}
 	for _, route := range routes {
 		DNSNames = append(DNSNames, route.Domain)
@@ -31,33 +52,33 @@ func (ctrl *K8Controller) buildCertificate(routes []utils.RouteConfig) certmanag
 		},
 	}
 }
-func (ctrl *K8Controller) getCertificate() (*certmanagerv1.Certificate, error) {
+func (ctrl *CertifcationBuilder) get() (*certmanagerv1.Certificate, error) {
 	return ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Get(context.TODO(), ctrl.Certificate.Name, metav1.GetOptions{})
 }
 
-func (ctrl *K8Controller) deleteCertificate() error {
-	if _, err := ctrl.getCertificate(); err == nil {
+func (ctrl *CertifcationBuilder) delete() error {
+	if _, err := ctrl.get(); err != nil {
 		return nil
 	}
 	return ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Delete(context.TODO(), ctrl.Certificate.Name, metav1.DeleteOptions{})
 }
 
-func (ctrl *K8Controller) createCertificate(routes []utils.RouteConfig) error {
-	certificate := ctrl.buildCertificate(routes)
+func (ctrl *CertifcationBuilder) Create(routes []utils.RouteConfig) error {
+	certificate := ctrl.build(routes)
 	if len(certificate.Spec.DNSNames) == 0 {
-		fmt.Println("Certificate exists, deleting it...")
-		return ctrl.deleteCertificate()
+		slog.Info("certificate exists, deleting it...")
+		return ctrl.delete()
 	}
-	existingCertificate, err := ctrl.getCertificate()
+	existingCertificate, err := ctrl.get()
 	if err != nil {
-		fmt.Println("Certficate does not exist, creating a new one...")
+		slog.Info("Certficate does not exist, creating a new one...")
 		_, err := ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Create(context.TODO(), &certificate, metav1.CreateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to create Certficate: %v", err)
 		}
 		return nil
 	}
-	fmt.Println("Certficate exists, updating it...")
+	slog.Info("Certficate exists, updating it...")
 	existingCertificate.Spec = certificate.Spec
 	_, err = ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Update(context.TODO(), existingCertificate, metav1.UpdateOptions{})
 	if err != nil {

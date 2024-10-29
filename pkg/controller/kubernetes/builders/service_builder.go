@@ -1,16 +1,37 @@
-package controller
+package builders
 
 import (
 	"context"
 	"fmt"
 	"warptail/pkg/utils"
 
+	"golang.org/x/exp/slog"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
-func (ctrl *K8Controller) buildService(routes []utils.RouteConfig) corev1.Service {
+type LoadbalancerBuilder struct {
+	Namespace    string
+	Loadbalancer utils.Loadbalancer
+	k8Client     *kubernetes.Clientset
+}
+
+func NewLoadbalancerBuilder(config utils.KubernetesConfig, k8cfg *rest.Config) *LoadbalancerBuilder {
+	k8Client, err := kubernetes.NewForConfig(k8cfg)
+	if err != nil {
+		return nil
+	}
+	return &LoadbalancerBuilder{
+		Namespace:    config.Namespace,
+		Loadbalancer: config.Loadbalancer,
+		k8Client:     k8Client,
+	}
+}
+
+func (ctrl *LoadbalancerBuilder) build(routes []utils.RouteConfig) corev1.Service {
 	service := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ctrl.Loadbalancer.Name,
@@ -38,34 +59,34 @@ func (ctrl *K8Controller) buildService(routes []utils.RouteConfig) corev1.Servic
 	return service
 }
 
-func (ctrl *K8Controller) getService() (*corev1.Service, error) {
+func (ctrl *LoadbalancerBuilder) get() (*corev1.Service, error) {
 	return ctrl.k8Client.CoreV1().Services(ctrl.Namespace).Get(context.TODO(), ctrl.Loadbalancer.Name, metav1.GetOptions{})
 }
 
-func (ctrl *K8Controller) deleteService() error {
-	if _, err := ctrl.getService(); err == nil {
+func (ctrl *LoadbalancerBuilder) delete() error {
+	if _, err := ctrl.get(); err != nil {
 		return nil
 	}
 	return ctrl.k8Client.CoreV1().Services(ctrl.Namespace).Delete(context.TODO(), ctrl.Loadbalancer.Name, metav1.DeleteOptions{})
 }
 
-func (ctrl *K8Controller) createService(routes []utils.RouteConfig) error {
-	service := ctrl.buildService(routes)
+func (ctrl *LoadbalancerBuilder) Create(routes []utils.RouteConfig) error {
+	service := ctrl.build(routes)
 	if len(service.Spec.Ports) == 0 {
-		fmt.Println("Service exists, deleting it...")
-		return ctrl.deleteService()
+		slog.Info("Service exists, deleting it...")
+		return ctrl.delete()
 	}
 
-	existingService, err := ctrl.getService()
+	existingService, err := ctrl.get()
 	if err != nil {
-		fmt.Println("Service does not exist, creating a new one...")
+		slog.Info("Service does not exist, creating a new one...")
 		_, err := ctrl.k8Client.CoreV1().Services(ctrl.Namespace).Create(context.TODO(), &service, metav1.CreateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to create Service: %v", err)
 		}
 		return nil
 	}
-	fmt.Println("Service exists, updating it...")
+	slog.Info("Service exists, updating it...")
 	existingService.Spec = service.Spec
 	_, err = ctrl.k8Client.CoreV1().Services(ctrl.Namespace).Update(context.TODO(), existingService, metav1.UpdateOptions{})
 	if err != nil {

@@ -1,8 +1,6 @@
-// // The tshello server demonstrates how to use Tailscale as a library.
 package main
 
 import (
-	"log"
 	"os"
 	"warptail/pkg/api"
 	"warptail/pkg/controller"
@@ -10,37 +8,40 @@ import (
 	"warptail/pkg/utils"
 )
 
-var configPath = os.Getenv("CONFIG_PATH")
-var Router *router.Router
-var config utils.Config
-
-func buildControllers(cfg utils.Config) []router.Controller {
-	ctrls := []router.Controller{}
-	if ctrl, err := controller.NewK8Controller(cfg.Kubernetes); err == nil {
-		ctrls = append(ctrls, ctrl)
-	}
-	if ctrl, err := controller.NewConfigController(configPath, Router); err == nil {
-		ctrls = append(ctrls, ctrl)
-	}
-	return ctrls
-}
+var (
+	config     utils.Config
+	configPath = os.Getenv("CONFIG_PATH")
+)
 
 func init() {
 	if len(configPath) == 0 {
 		configPath = "config.yaml"
 	}
 	config = utils.LoadConfig(configPath)
-	Router = router.NewRouter()
-	Router.Controllers = buildControllers(config)
+}
+
+func setupControllers(cfg utils.Config, rt *router.Router) {
+	rt.Controllers = []router.Controller{}
+	if !utils.IsEmptyStruct(cfg.Kubernetes) {
+		if ctrl, err := controller.NewK8Controller(cfg.Kubernetes); err == nil {
+			rt.Controllers = append(rt.Controllers, ctrl)
+		}
+	} else {
+		if ctrl, err := controller.NewConfigController(configPath, rt); err == nil {
+			rt.Controllers = append(rt.Controllers, ctrl)
+		}
+	}
 }
 
 func main() {
-	err := Router.Init(config)
-	if err != nil {
-		log.Fatalf("Unable to Start router %w", err)
-	}
+	Router := router.NewRouter()
+	Router.Init(config)
+	setupControllers(config, Router)
 	Router.StartAll()
 	defer Router.StopAll()
+	if !utils.IsEmptyStruct(config.Kubernetes) {
+		go controller.StartController(Router)
+	}
 	server := api.NewApi(Router, config)
 	server.Start(config.Dasboard.Port)
 }

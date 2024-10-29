@@ -1,15 +1,38 @@
-package controller
+package builders
 
 import (
 	"context"
 	"fmt"
 	"warptail/pkg/utils"
 
+	"golang.org/x/exp/slog"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
-func (ctrl *K8Controller) buildIngress(routes []utils.RouteConfig) networkingv1.Ingress {
+type IngressBuilder struct {
+	Namespace   string
+	Ingress     utils.Ingress
+	Certificate utils.Certificate
+	k8Client    *kubernetes.Clientset
+}
+
+func NewIngressBuilder(config utils.KubernetesConfig, k8cfg *rest.Config) *IngressBuilder {
+	k8Client, err := kubernetes.NewForConfig(k8cfg)
+	if err != nil {
+		return nil
+	}
+	return &IngressBuilder{
+		Namespace:   config.Namespace,
+		Certificate: config.Certificate,
+		Ingress:     config.Ingress,
+		k8Client:    k8Client,
+	}
+}
+
+func (ctrl *IngressBuilder) build(routes []utils.RouteConfig) networkingv1.Ingress {
 	ingress := networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ctrl.Ingress.Name,
@@ -57,33 +80,33 @@ func (ctrl *K8Controller) buildIngress(routes []utils.RouteConfig) networkingv1.
 	return ingress
 }
 
-func (ctrl *K8Controller) getIngress() (*networkingv1.Ingress, error) {
+func (ctrl *IngressBuilder) get() (*networkingv1.Ingress, error) {
 	return ctrl.k8Client.NetworkingV1().Ingresses(ctrl.Namespace).Get(context.TODO(), ctrl.Ingress.Name, metav1.GetOptions{})
 }
 
-func (ctrl *K8Controller) deleteIngress() error {
-	if _, err := ctrl.getIngress(); err == nil {
+func (ctrl *IngressBuilder) delete() error {
+	if _, err := ctrl.get(); err != nil {
 		return nil
 	}
 	return ctrl.k8Client.NetworkingV1().Ingresses(ctrl.Namespace).Delete(context.TODO(), ctrl.Ingress.Name, metav1.DeleteOptions{})
 }
 
-func (ctrl *K8Controller) createIngress(routes []utils.RouteConfig) error {
-	ingress := ctrl.buildIngress(routes)
+func (ctrl *IngressBuilder) Create(routes []utils.RouteConfig) error {
+	ingress := ctrl.build(routes)
 	if len(ingress.Spec.Rules) == 0 {
-		fmt.Println("Ingress exists, deleting it...")
-		return ctrl.deleteIngress()
+		slog.Info("Ingress exists, deleting it...")
+		return ctrl.delete()
 	}
-	existingIngress, err := ctrl.getIngress()
+	existingIngress, err := ctrl.get()
 	if err != nil {
-		fmt.Println("Ingress does not exist, creating a new one...")
+		slog.Info("Ingress does not exist, creating a new one...")
 		_, err := ctrl.k8Client.NetworkingV1().Ingresses(ctrl.Namespace).Create(context.TODO(), &ingress, metav1.CreateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to create Ingress: %v", err)
 		}
 		return nil
 	}
-	fmt.Println("Ingress exists, updating it...")
+	slog.Info("Ingress exists, updating it...")
 	existingIngress.Spec = ingress.Spec
 	_, err = ctrl.k8Client.NetworkingV1().Ingresses(ctrl.Namespace).Update(context.TODO(), existingIngress, metav1.UpdateOptions{})
 	if err != nil {

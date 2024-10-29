@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"reflect"
 
@@ -58,7 +59,7 @@ func (config *Config) validate() {
 
 	if config.Dasboard.Enabled && config.Dasboard.Token == "" {
 		config.Dasboard.Token = tokenGenerator(24)
-		fmt.Printf("New Dashboard Token: %s", config.Dasboard.Token)
+		slog.Info("New Dashboard Token", "token", config.Dasboard.Token)
 	}
 
 	if !IsEmptyStruct(config.Kubernetes) {

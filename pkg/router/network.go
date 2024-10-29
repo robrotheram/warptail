@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -60,7 +61,7 @@ func (route *NetworkRoute) Stop() error {
 	route.status = STOPPING
 	close(route.quit)
 	<-route.exited
-	fmt.Println("Stopped successfully")
+	slog.Info("Stopped successfully")
 	route.status = STOPPED
 	return nil
 }
@@ -93,20 +94,19 @@ func (route *NetworkRoute) serve() {
 	for {
 		select {
 		case <-route.quit:
-			fmt.Println("Shutting down...")
+			slog.Info("Shutting down...")
 			route.listener.Close()
 			handlers.Wait()
 			close(route.exited)
 			return
 		default:
-			//fmt.Println("Listening for clients")
 			route.listener.SetDeadline(time.Now().Add(1e9))
 			conn, err := route.listener.Accept()
 			if err != nil {
 				if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 					continue
 				}
-				fmt.Println("Failed to accept connection:", err.Error())
+				slog.Error("failed to accept connection", "error", err.Error())
 			}
 			handlers.Add(1)
 			go func() {

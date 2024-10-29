@@ -23,7 +23,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }): ReactNode
 export const useConfig = (): Config => {
     const context = useContext(ConfigContext);
     if (!context) {
-        throw new Error('useConfig must be used within an ConfigProvider');
+        return {EDIT_MODE: true}
     }
     return context;
 };

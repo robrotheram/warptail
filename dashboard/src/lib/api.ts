@@ -44,8 +44,8 @@ export interface Route {
 }
 
 export interface Machine {
-    Address: string
-    Port: number
+    address: string
+    port: number
 }
 
 export interface Tailsale {

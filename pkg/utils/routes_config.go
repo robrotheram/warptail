@@ -10,9 +10,9 @@ const (
 )
 
 type ServiceConfig struct {
-	Name    string        `yaml:"name"`
-	Enabled bool          `yaml:"enabled"`
-	Routes  []RouteConfig `yaml:"routes"`
+	Name    string        `yaml:"name" json:"name"`
+	Enabled bool          `yaml:"enabled" json:"enabled"`
+	Routes  []RouteConfig `yaml:"routes" json:"routes"`
 }
 
 type RouteConfig struct {
@@ -23,8 +23,8 @@ type RouteConfig struct {
 }
 
 type Machine struct {
-	Address string `yaml:"address"`
-	Port    uint16 `yaml:"port"`
+	Address string `yaml:"address" json:"address"`
+	Port    uint16 `yaml:"port" json:"port"`
 }
 
 func RouteComparison(v1, v2 RouteConfig) bool {

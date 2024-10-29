@@ -2,13 +2,14 @@ import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { HeaderNav, SideNav } from "../Nav"
 import { useAuth } from '@/context/AuthContext';
 import { LoginPage } from '@/LoginPage';
+import { ConfigProvider } from '@/context/ConfigContext';
 
 
 export const Route = createRootRoute({
     component: () => {
         const { isAuthenticated } = useAuth();
         if(!isAuthenticated) return <LoginPage />
-        return <>
+        return <ConfigProvider>
             <div className="flex min-h-screen w-full">
                 <SideNav />
                 <div className="flex flex-1 flex-col sm:gap-4 sm:py-4 sm:pl-14">
@@ -18,7 +19,7 @@ export const Route = createRootRoute({
                     </main>
                 </div>
             </div>
-        </>
+        </ConfigProvider>
     }
 })
 

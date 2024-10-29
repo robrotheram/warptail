@@ -104,8 +104,8 @@ export const ServiceCard = ({id, edit}:ServiceCardProps) => {
     const routes = [{
       type: "",
       machine: {
-        Address: "",
-        Port: 0,
+        address: "",
+        port: 0,
       }
     }, ...service.routes]
     setService({ ...service, routes })

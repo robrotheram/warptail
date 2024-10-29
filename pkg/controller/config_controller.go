@@ -1,8 +1,8 @@
 package controller
 
 import (
-	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"warptail/pkg/router"
 	"warptail/pkg/utils"
@@ -75,7 +75,7 @@ func (ctrl *ConfigCtrl) Watch() error {
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					currentHash := utils.ConfigHash(ctrl.path)
 					if currentHash != ctrl.lastHash {
-						fmt.Println("File modified by an external source:", event.Name)
+						slog.Info("file modified by an external source" + event.Name)
 						ctrl.lastHash = currentHash
 						config := utils.LoadConfig(ctrl.path)
 						ctrl.router.Reload(config)
@@ -85,7 +85,7 @@ func (ctrl *ConfigCtrl) Watch() error {
 				if !ok {
 					return
 				}
-				fmt.Println("Error:", err)
+				slog.Warn("Unable watch for config changes", "error", err)
 			}
 		}
 	}()

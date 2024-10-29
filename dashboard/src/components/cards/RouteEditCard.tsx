@@ -88,8 +88,8 @@ type RouteEditProps = {
                 <Label htmlFor="host">Tailscale Host</Label>
                 <Input
                   id="host"
-                  name="Address"
-                  value={route?.machine.Address}
+                  name="address"
+                  value={route?.machine.address}
                   onChange={handleInputMachineChange}
                 />
               </div>
@@ -97,9 +97,9 @@ type RouteEditProps = {
                 <Label htmlFor="port">Tailscale Port</Label>
                 <Input
                   id="port"
-                  name="Port"
+                  name="port"
                   type="number"
-                  value={route?.machine.Port}
+                  value={route?.machine.port}
                   onChange={handleInputMachineChange}
                 />
               </div>

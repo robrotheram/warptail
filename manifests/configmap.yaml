@@ -9,5 +9,16 @@ data:
       hostnmae: "TS_HOSTNAME"
     dashboard:
       enabled: true
+    kubernetes:
+      namespace: ""
+      loadbalancer: 
+        name: "warptail-lb"
+      certificate:
+        name: "warptail-certificate"
+        secret_name: "warptail-certificate-secret"
+      ingress: 
+        name: "wt-ingress"
+        class: "traefik"
+        service: "warptail-service"
     services: []
     

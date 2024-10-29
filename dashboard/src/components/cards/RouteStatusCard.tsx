@@ -40,7 +40,7 @@ export const RouteStatusCard = ({ route }: RouteCardProps) => {
             <a href={`http://${route.domain}`}>http://{route.domain}</a>
           }
         </div>
-        <div>{route.machine.Address}:{route.machine.Port}</div>
+        <div>{route.machine.address}:{route.machine.port}</div>
         <div className='flex gap-2'>
           <Activity className={`h-5 w-5 ${isActive(route) ? 'text-green-500' : 'text-red-500'}`} />
           {isActive(route) && `${route.latency} ms`}
