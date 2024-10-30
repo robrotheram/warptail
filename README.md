@@ -151,6 +151,88 @@ Here's a README section for documenting the Prometheus metrics exposed by the Go
 
 ---
 
+Here’s a new section explaining how to configure WarpTail as a Kubernetes controller with a custom CRD (`WarpTailService`) to manage service configuration directly in Kubernetes:
+
+---
+
+## Kubernetes Controller with Custom CRD Support
+
+WarpTail can be deployed as a Kubernetes controller, allowing users to manage WarpTail service configurations through a Custom Resource Definition (CRD). This approach enables a Kubernetes-native setup, where you can define services and routing rules directly within the cluster using custom resources.
+
+### Custom Resource Definition (CRD)
+
+The `WarpTailService` CRD allows you to define routing and service configurations using a Kubernetes resource. This makes it easy to manage services, automate deployments, and integrate with Kubernetes-native tools.
+
+### Example CRD Configuration
+
+To set up a WarpTail service using the `WarpTailService` CRD, create a YAML file defining the resource, specifying details such as the domain, protocol, machine IP, and port.
+
+#### Example `WarpTailService` Resource
+```yaml
+apiVersion: warptail.exceptionerror.io/v1
+kind: WarpTailService
+metadata:
+  name: jellyfin
+  namespace: warptail
+spec:
+  routes:
+    - type: http
+      domain: https://jellyfin.exceptionerror.io/
+      machine:
+        address: 192.168.0.104
+        port: 30013
+```
+
+In this example:
+- **`apiVersion`**: Defines the API version for the `WarpTailService` resource.
+- **`kind`**: Specifies the type of the resource, which is `WarpTailService`.
+- **`metadata.name`**: Unique name for the service in Kubernetes.
+- **`metadata.namespace`**: Namespace where the resource is defined (e.g., `warptail`).
+- **`spec.routes`**: Specifies the routing configuration for the service.
+  - **`type`**: Defines the protocol type (e.g., `http`, `tcp`).
+  - **`domain`**: The external domain or URL that maps to the service.
+  - **`machine.address`**: Internal IP address of the machine within the tailnet.
+  - **`machine.port`**: The port on which the service runs internally.
+
+### Deploying the CRD
+
+To deploy the `WarpTailService` CRD, save the configuration to a YAML file (e.g., `jellyfin-service.yaml`) and apply it to your Kubernetes cluster:
+
+```bash
+kubectl apply -f jellyfin-service.yaml
+```
+
+### Managing Services with CRD
+
+Once the `WarpTailService` CRD is deployed, the WarpTail Kubernetes controller will automatically manage the service:
+- It will configure ingress rules based on the specified domains.
+- Routes will be created dynamically, allowing access to the specified machine IP and port.
+- Changes to the CRD will be automatically picked up, and the routing will be updated accordingly.
+
+### Benefits of CRD-based Configuration
+Using a CRD for WarpTail services provides several advantages:
+- **Kubernetes-Native**: Manage WarpTail configurations alongside other Kubernetes resources.
+- **Declarative Management**: Define all routing rules declaratively and store configurations in version-controlled YAML files.
+- **Automated Updates**: Modify the CRD to update WarpTail’s routing dynamically without editing the `config.yaml`.
+
+### Example: Listing and Managing WarpTail Services
+
+To list all configured `WarpTailService` resources in the `warptail` namespace:
+
+```bash
+kubectl get warptailservice -n warptail
+```
+
+To view detailed information on a specific `WarpTailService`:
+
+```bash
+kubectl describe warptailservice jellyfin -n warptail
+```
+
+By using the `WarpTailService` CRD, you integrate WarpTail seamlessly within your Kubernetes ecosystem, making it easier to manage, deploy, and update your proxy services.
+
+---
+
 ## Prometheus Metrics
 
 **Warptail** exposes a set of Prometheus metrics for monitoring its services and routes. These metrics are available at the `/metrics` endpoint.
