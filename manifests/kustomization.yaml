@@ -4,6 +4,7 @@ resources:
 - configmap.yaml
 - ingress.yaml
 - rbac.yaml
+- crd/warptail.exceptionerror.io_warptailservices.yaml
 images:
 - name: app-image
   newName: ghcr.io/robrotheram/warptail
