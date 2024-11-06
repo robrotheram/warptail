@@ -1,7 +1,9 @@
 package router
 
 import (
+	"bytes"
 	"net"
+	"net/http"
 	"sync"
 )
 
@@ -46,4 +48,33 @@ func (crw *ConnMonitor) BytesWritten() int64 {
 	crw.mu.Lock()
 	defer crw.mu.Unlock()
 	return crw.bytesWritten
+}
+
+type ResponseRecorder struct {
+	http.ResponseWriter
+	statusCode   int
+	responseSize int
+	body         *bytes.Buffer
+}
+
+func NewResponseRecorder(w http.ResponseWriter) *ResponseRecorder {
+	return &ResponseRecorder{
+		ResponseWriter: w,
+		statusCode:     http.StatusOK,
+		body:           bytes.NewBuffer(nil),
+	}
+}
+
+func (rr *ResponseRecorder) WriteHeader(statusCode int) {
+	rr.statusCode = statusCode
+	rr.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (rr *ResponseRecorder) Write(b []byte) (int, error) {
+	size, err := rr.ResponseWriter.Write(b)
+	if err == nil {
+		rr.responseSize += size
+	}
+	rr.body.Write(b)
+	return size, err
 }

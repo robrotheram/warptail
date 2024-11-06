@@ -2,10 +2,10 @@ package router
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strconv"
 	"time"
 	"warptail/pkg/utils"
 
@@ -56,13 +56,14 @@ func (route *HTTPRoute) Stats() utils.TimeSeriesData {
 	return route.data.Data
 }
 
-func parseRequestSize(header http.Header) (int64, error) {
-	contentLength := header.Get("Content-Length")
-	if contentLength == "" {
-		return 0, nil
-	}
-	return strconv.ParseInt(contentLength, 10, 64)
-}
+//	func parseRequestSize(header http.Header) (int64, error) {
+//		contentLength := header.Get("Content-Length")
+//		if contentLength == "" {
+//			return 0, nil
+//		}
+//		return strconv.ParseInt(contentLength, 10, 64)
+//	}
+
 func (route *HTTPRoute) getUrl() (*url.URL, error) {
 	return url.Parse(fmt.Sprintf("http://%s:%d", route.config.Machine.Address, route.config.Machine.Port))
 }
@@ -72,23 +73,22 @@ func (route *HTTPRoute) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if bodyBytes, err := io.ReadAll(r.Body); err == nil {
+		route.data.LogSent(uint64(len(bodyBytes)))
+	}
+
 	url, err := route.getUrl()
 	if err != nil {
 		w.WriteHeader(http.StatusBadGateway)
 		return
 	}
+	rr := NewResponseRecorder(w)
 
 	proxy := httputil.NewSingleHostReverseProxy(url)
 	proxy.Transport = route.Transport
+	proxy.ServeHTTP(rr, r)
 
-	if size, err := parseRequestSize(r.Header); err == nil {
-		route.data.LogRecived(uint64(size))
-	}
-
-	proxy.ServeHTTP(w, r)
-	if size, err := parseRequestSize(w.Header()); err == nil {
-		route.data.LogSent(uint64(size))
-	}
+	route.data.LogRecived(uint64(rr.responseSize))
 }
 
 func (route *HTTPRoute) heartbeat(timeout time.Duration) {
