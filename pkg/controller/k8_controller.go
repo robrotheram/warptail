@@ -3,8 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"log"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"warptail/pkg/controller/kubernetes/builders"
@@ -16,7 +14,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -90,6 +87,7 @@ func NewK8Controller(cfg utils.KubernetesConfig) (*K8Controller, error) {
 }
 
 func (ctrl *K8Controller) Update(router *router.Router) {
+	logger := router.GetLogger()
 	routes := []utils.RouteConfig{}
 	for _, svc := range router.Services {
 		for _, route := range svc.Routes {
@@ -97,13 +95,13 @@ func (ctrl *K8Controller) Update(router *router.Router) {
 		}
 	}
 	if err := ctrl.LoadbalancerBuilder.Create(routes); err != nil {
-		log.Printf("K8 Service Error: %v", err)
+		logger.Error(err, "unable to create Loadbalancer")
 	}
 	if err := ctrl.IngressBuilder.Create(routes); err != nil {
-		log.Printf("K8 Ingress Error: %v", err)
+		logger.Error(err, "unable to create ingress")
 	}
 	if err := ctrl.CertBuilder.Create(routes); err != nil {
-		log.Printf("K8 Certificate Error: %v", err)
+		logger.Error(err, "unable to create certificats")
 	}
 }
 
@@ -113,7 +111,7 @@ func StartController(router *router.Router) {
 		LeaderElection:   false,
 		LeaderElectionID: "90da48b4.warptail.exceptionerror.io",
 	})
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: false})))
+	ctrl.SetLogger(router.GetLogger())
 
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -125,7 +123,6 @@ func StartController(router *router.Router) {
 		Scheme: mgr.GetScheme(),
 		Router: router,
 	}).SetupWithManager(mgr); err != nil {
-		slog.Error("unable to setup contoller", "error", err.Error())
 		setupLog.Error(err, "unable to create controller", "controller", "WarpTailService")
 		os.Exit(1)
 	}

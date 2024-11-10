@@ -1,10 +1,17 @@
 package router
 
 import (
+	"fmt"
 	"warptail/pkg/utils"
 
 	"tailscale.com/tsnet"
 )
+
+func LogPrintf(format string, args ...interface{}) {
+	logger := utils.Logger
+	formattedMessage := fmt.Sprintf(format, args...)
+	logger.Info(formattedMessage)
+}
 
 func (r *Router) UpdateTailscale(config utils.TailscaleConfig) {
 
@@ -12,6 +19,7 @@ func (r *Router) UpdateTailscale(config utils.TailscaleConfig) {
 		r.ts = new(tsnet.Server)
 		r.ts.AuthKey = config.AuthKey
 		r.ts.Hostname = config.Hostname
+		r.ts.UserLogf = LogPrintf
 		r.ts.Start()
 		return
 	}

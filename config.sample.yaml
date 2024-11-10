@@ -1,10 +1,14 @@
+logging:
+  format: stdout    # Choose "json" or consol
+  level: info       # Logging level: info, warn, error
+  output: stdout    # Choose the output, "stdout" for console output or a filepath
 tailscale:
   api_key: ""
   hostnmae: "TS_HOSTNAME"
 dashboard:
   enabled: true
-  port: ":8081"
-  password: CHANGEME
+  token: CHANGEME
+  port: :8001
 services:
 - name: test
   enabled: true

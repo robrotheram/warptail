@@ -50,11 +50,13 @@ WarpTail uses a `config.yaml` file for all configuration management. The configu
 tailscale:
   auth_key: tskey-auth-XXXXXXXXXXXXXXXXXXXXXXXXXXX
   hostname: warptail
-
+logging:
+  format: stdout    # Choose "json" or consol
+  level: info       # Logging level: info, warn, error
+  output: stdout    # Choose the output, "stdout" for console output or a filepath
 dashboard:
   enabled: true
-  username: admin
-  password: mallard
+  token: changeME
 
 # Specify Routes
 routes:

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"warptail/pkg/utils"
 
+	"github.com/go-logr/logr"
 	"github.com/gosimple/slug"
 	"tailscale.com/tsnet"
 )
@@ -12,6 +13,7 @@ type Router struct {
 	Services    map[string]*Service
 	ts          *tsnet.Server
 	Controllers []Controller
+	logger      logr.Logger
 }
 
 type RouteInfo struct {
@@ -23,6 +25,7 @@ type RouteInfo struct {
 func NewRouter() *Router {
 	router := &Router{
 		Services: make(map[string]*Service),
+		logger:   utils.Logger,
 	}
 	return router
 }
@@ -68,6 +71,11 @@ func (r *Router) Create(svc utils.ServiceConfig) (*Service, *RouterError) {
 	}
 	service := NewService(svc, r.ts)
 	r.Services[service.Id] = service
+
+	if service.Enabled {
+		service.Start()
+	}
+
 	return service, nil
 }
 
@@ -140,4 +148,8 @@ func (r *Router) StopAll() {
 	for _, svc := range r.Services {
 		svc.Stop()
 	}
+}
+
+func (r *Router) GetLogger() logr.Logger {
+	return r.logger
 }

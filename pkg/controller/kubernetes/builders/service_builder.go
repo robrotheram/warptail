@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"warptail/pkg/utils"
 
-	"golang.org/x/exp/slog"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -17,6 +17,7 @@ type LoadbalancerBuilder struct {
 	Namespace    string
 	Loadbalancer utils.Loadbalancer
 	k8Client     *kubernetes.Clientset
+	logger       logr.Logger
 }
 
 func NewLoadbalancerBuilder(config utils.KubernetesConfig, k8cfg *rest.Config) *LoadbalancerBuilder {
@@ -28,6 +29,7 @@ func NewLoadbalancerBuilder(config utils.KubernetesConfig, k8cfg *rest.Config) *
 		Namespace:    config.Namespace,
 		Loadbalancer: config.Loadbalancer,
 		k8Client:     k8Client,
+		logger:       utils.Logger,
 	}
 }
 
@@ -73,20 +75,20 @@ func (ctrl *LoadbalancerBuilder) delete() error {
 func (ctrl *LoadbalancerBuilder) Create(routes []utils.RouteConfig) error {
 	service := ctrl.build(routes)
 	if len(service.Spec.Ports) == 0 {
-		slog.Info("Service exists, deleting it...")
+		ctrl.logger.Info("Service exists, deleting it...")
 		return ctrl.delete()
 	}
 
 	existingService, err := ctrl.get()
 	if err != nil {
-		slog.Info("Service does not exist, creating a new one...")
+		ctrl.logger.Info("Service does not exist, creating a new one...")
 		_, err := ctrl.k8Client.CoreV1().Services(ctrl.Namespace).Create(context.TODO(), &service, metav1.CreateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to create Service: %v", err)
 		}
 		return nil
 	}
-	slog.Info("Service exists, updating it...")
+	ctrl.logger.Info("Service exists, updating it...")
 	existingService.Spec = service.Spec
 	_, err = ctrl.k8Client.CoreV1().Services(ctrl.Namespace).Update(context.TODO(), existingService, metav1.UpdateOptions{})
 	if err != nil {

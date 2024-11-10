@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"log"
-	"log/slog"
 	"os"
 	"warptail/pkg/router"
 	"warptail/pkg/utils"
@@ -33,15 +31,16 @@ func NewConfigController(path string, router *router.Router) (*ConfigCtrl, error
 	return &ctrl, nil
 }
 func (ctrl *ConfigCtrl) Save(config utils.Config) {
+	logger := ctrl.router.GetLogger()
 	b, err := yaml.Marshal(config)
 	if err != nil {
-		log.Fatalf("error: %v", err)
+		logger.Error(err, "unable to marshal config")
 	}
 	err = os.WriteFile(ctrl.path, b, os.ModeDir)
 	if err != nil {
-		log.Println("unable to save config: %w", err)
+		logger.Error(err, "unable to write config")
 	}
-	log.Println("saved config")
+	logger.Info("config saved")
 }
 
 func (ctrl *ConfigCtrl) Update(router *router.Router) {
@@ -65,6 +64,7 @@ func (ctrl *ConfigCtrl) Update(router *router.Router) {
 }
 
 func (ctrl *ConfigCtrl) Watch() error {
+	logger := ctrl.router.GetLogger()
 	go func() {
 		for {
 			select {
@@ -75,7 +75,7 @@ func (ctrl *ConfigCtrl) Watch() error {
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					currentHash := utils.ConfigHash(ctrl.path)
 					if currentHash != ctrl.lastHash {
-						slog.Info("file modified by an external source" + event.Name)
+						logger.Info("file modified by an external source", "source", event.Name)
 						ctrl.lastHash = currentHash
 						config := utils.LoadConfig(ctrl.path)
 						ctrl.router.Reload(config)
@@ -85,7 +85,7 @@ func (ctrl *ConfigCtrl) Watch() error {
 				if !ok {
 					return
 				}
-				slog.Warn("Unable watch for config changes", "error", err)
+				logger.Error(err, "unable watch for config changes")
 			}
 		}
 	}()

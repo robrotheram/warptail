@@ -28,6 +28,7 @@ type Config struct {
 	Dasboard   DashboardConfig  `yaml:"dashboard"`
 	Kubernetes KubernetesConfig `yaml:"kubernetes,omitempty"`
 	Services   []ServiceConfig  `yaml:"services"`
+	Logging    LoggingConfig    `yaml:"logging"`
 }
 
 func ConfigHash(path string) [16]byte {
@@ -49,6 +50,7 @@ func LoadConfig(configPath string) Config {
 		log.Fatalf("error: %v", err)
 	}
 	config.validate()
+	setupLogger(config.Logging)
 	return config
 }
 

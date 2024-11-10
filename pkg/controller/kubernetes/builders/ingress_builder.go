@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"warptail/pkg/utils"
 
-	"golang.org/x/exp/slog"
+	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -17,6 +17,7 @@ type IngressBuilder struct {
 	Ingress     utils.Ingress
 	Certificate utils.Certificate
 	k8Client    *kubernetes.Clientset
+	logger      logr.Logger
 }
 
 func NewIngressBuilder(config utils.KubernetesConfig, k8cfg *rest.Config) *IngressBuilder {
@@ -29,6 +30,7 @@ func NewIngressBuilder(config utils.KubernetesConfig, k8cfg *rest.Config) *Ingre
 		Certificate: config.Certificate,
 		Ingress:     config.Ingress,
 		k8Client:    k8Client,
+		logger:      utils.Logger,
 	}
 }
 
@@ -94,19 +96,19 @@ func (ctrl *IngressBuilder) delete() error {
 func (ctrl *IngressBuilder) Create(routes []utils.RouteConfig) error {
 	ingress := ctrl.build(routes)
 	if len(ingress.Spec.Rules) == 0 {
-		slog.Info("Ingress exists, deleting it...")
+		ctrl.logger.Info("Ingress exists, deleting it...")
 		return ctrl.delete()
 	}
 	existingIngress, err := ctrl.get()
 	if err != nil {
-		slog.Info("Ingress does not exist, creating a new one...")
+		ctrl.logger.Info("Ingress does not exist, creating a new one...")
 		_, err := ctrl.k8Client.NetworkingV1().Ingresses(ctrl.Namespace).Create(context.TODO(), &ingress, metav1.CreateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to create Ingress: %v", err)
 		}
 		return nil
 	}
-	slog.Info("Ingress exists, updating it...")
+	ctrl.logger.Info("Ingress exists, updating it...")
 	existingIngress.Spec = ingress.Spec
 	_, err = ctrl.k8Client.NetworkingV1().Ingresses(ctrl.Namespace).Update(context.TODO(), existingIngress, metav1.UpdateOptions{})
 	if err != nil {

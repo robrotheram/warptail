@@ -37,7 +37,6 @@ func main() {
 	Router := router.NewRouter()
 	Router.Init(config)
 	setupControllers(config, Router)
-	Router.StartAll()
 	defer Router.StopAll()
 	if !utils.IsEmptyStruct(config.Kubernetes) {
 		go controller.StartController(Router)

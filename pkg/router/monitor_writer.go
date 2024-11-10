@@ -1,7 +1,9 @@
 package router
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
 	"net"
 	"net/http"
 	"sync"
@@ -68,6 +70,13 @@ func NewResponseRecorder(w http.ResponseWriter) *ResponseRecorder {
 func (rr *ResponseRecorder) WriteHeader(statusCode int) {
 	rr.statusCode = statusCode
 	rr.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (rr *ResponseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := rr.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, errors.New("ResponseWriter does not support hijacking")
 }
 
 func (rr *ResponseRecorder) Write(b []byte) (int, error) {

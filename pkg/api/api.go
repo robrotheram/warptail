@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -23,6 +24,7 @@ type api struct {
 	*router.Router
 	Mux    *chi.Mux
 	config utils.Config
+	logger logr.Logger
 }
 
 func WriteErrorResponse(w http.ResponseWriter, err *router.RouterError) {
@@ -64,6 +66,7 @@ func NewApi(router *router.Router, config utils.Config) *api {
 		Router: router,
 		Mux:    chi.NewRouter(),
 		config: config,
+		logger: utils.Logger,
 	}
 	// Add middlewares
 	api.Mux.Use(middleware.RequestID)
@@ -129,8 +132,9 @@ func (api *api) proxy(next http.Handler) http.Handler {
 }
 
 func (api *api) Start(addr string) {
-	log.Println("Starting API on http://localhost" + addr)
-	log.Println(http.ListenAndServe(addr, api.Mux))
+	api.logger.Info("Starting API on http://localhost" + addr)
+	err := http.ListenAndServe(addr, api.Mux)
+	api.logger.Error(err, "unable to start api")
 }
 
 func (api *api) handleUi() {

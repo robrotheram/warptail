@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"log/slog"
 	"warptail/pkg/router"
 
 	"github.com/gosimple/slug"
@@ -10,6 +9,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type WarpTailServiceReconciler struct {
@@ -18,18 +18,18 @@ type WarpTailServiceReconciler struct {
 	Router *router.Router
 }
 
+const myFinalizerName = "warptail.exceptionerror.io/finalizer"
+
 func (r *WarpTailServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var wtservice WarpTailService
 	if err := r.Get(ctx, req.NamespacedName, &wtservice); err != nil {
 		return ctrl.Result{}, nil
 	}
 
-	if err := r.UpdateService(wtservice); err != nil {
+	if err := r.UpdateService(ctx, wtservice); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	// name of our custom finalizer
-	myFinalizerName := "warptail.exceptionerror.io/finalizer"
 	// examine DeletionTimestamp to determine if object is under deletion
 	if wtservice.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&wtservice, myFinalizerName) {
@@ -40,7 +40,7 @@ func (r *WarpTailServiceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 	} else {
 		if controllerutil.ContainsFinalizer(&wtservice, myFinalizerName) {
-			if err := r.RemoveService(wtservice); err != nil {
+			if err := r.RemoveService(ctx, wtservice); err != nil {
 				return ctrl.Result{}, err
 			}
 			controllerutil.RemoveFinalizer(&wtservice, myFinalizerName)
@@ -61,22 +61,25 @@ func (r *WarpTailServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *WarpTailServiceReconciler) UpdateService(svc WarpTailService) *router.RouterError {
+func (r *WarpTailServiceReconciler) UpdateService(ctx context.Context, svc WarpTailService) *router.RouterError {
+	logger := log.FromContext(ctx)
 	defer r.Router.Save()
 	id := slug.Make(svc.Name)
 	if _, err := r.Router.Get(id); err != nil {
-		slog.Info("creating", "service", svc.Name)
+
+		logger.Info("creating", "service", svc.Name)
 		_, err := r.Router.Create(svc.ToServiceConfig())
 		return err
 	}
-	slog.Info("updating", "service", svc.Name)
+	logger.Info("updating", "service", svc.Name)
 	_, err := r.Router.Update(id, svc.ToServiceConfig())
 	return err
 }
 
-func (r *WarpTailServiceReconciler) RemoveService(svc WarpTailService) *router.RouterError {
+func (r *WarpTailServiceReconciler) RemoveService(ctx context.Context, svc WarpTailService) *router.RouterError {
+	logger := log.FromContext(ctx)
 	defer r.Router.Save()
-	slog.Info("Removing", "service", svc.Name)
+	logger.Info("Removing", "service", svc.Name)
 	id := slug.Make(svc.Name)
 	return r.Router.Remove(id)
 }

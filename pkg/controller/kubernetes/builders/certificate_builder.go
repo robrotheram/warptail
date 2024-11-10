@@ -8,7 +8,7 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	cmclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
-	"golang.org/x/exp/slog"
+	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 )
@@ -17,6 +17,7 @@ type CertifcationBuilder struct {
 	Namespace   string
 	Certificate utils.Certificate
 	cmclient    *cmclientset.Clientset
+	logger      logr.Logger
 }
 
 func NewCertifcationBuilder(config utils.KubernetesConfig, k8cfg *rest.Config) *CertifcationBuilder {
@@ -28,6 +29,7 @@ func NewCertifcationBuilder(config utils.KubernetesConfig, k8cfg *rest.Config) *
 		Namespace:   config.Namespace,
 		Certificate: config.Certificate,
 		cmclient:    cmclient,
+		logger:      utils.Logger,
 	}
 }
 
@@ -66,19 +68,19 @@ func (ctrl *CertifcationBuilder) delete() error {
 func (ctrl *CertifcationBuilder) Create(routes []utils.RouteConfig) error {
 	certificate := ctrl.build(routes)
 	if len(certificate.Spec.DNSNames) == 0 {
-		slog.Info("certificate exists, deleting it...")
+		ctrl.logger.Info("certificate exists, deleting it...")
 		return ctrl.delete()
 	}
 	existingCertificate, err := ctrl.get()
 	if err != nil {
-		slog.Info("Certficate does not exist, creating a new one...")
+		ctrl.logger.Info("Certficate does not exist, creating a new one...")
 		_, err := ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Create(context.TODO(), &certificate, metav1.CreateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to create Certficate: %v", err)
 		}
 		return nil
 	}
-	slog.Info("Certficate exists, updating it...")
+	ctrl.logger.Info("Certficate exists, updating it...")
 	existingCertificate.Spec = certificate.Spec
 	_, err = ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Update(context.TODO(), existingCertificate, metav1.UpdateOptions{})
 	if err != nil {
