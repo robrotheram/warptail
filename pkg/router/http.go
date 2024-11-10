@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,14 +57,6 @@ func (route *HTTPRoute) Stats() utils.TimeSeriesData {
 	return route.data.Data
 }
 
-//	func parseRequestSize(header http.Header) (int64, error) {
-//		contentLength := header.Get("Content-Length")
-//		if contentLength == "" {
-//			return 0, nil
-//		}
-//		return strconv.ParseInt(contentLength, 10, 64)
-//	}
-
 func (route *HTTPRoute) getUrl() (*url.URL, error) {
 	return url.Parse(fmt.Sprintf("http://%s:%d", route.config.Machine.Address, route.config.Machine.Port))
 }
@@ -75,6 +68,7 @@ func (route *HTTPRoute) Handle(w http.ResponseWriter, r *http.Request) {
 
 	if bodyBytes, err := io.ReadAll(r.Body); err == nil {
 		route.data.LogSent(uint64(len(bodyBytes)))
+		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 
 	url, err := route.getUrl()
