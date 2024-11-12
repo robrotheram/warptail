@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useCallback } from 'react';
 
 interface AuthContextType {
   token: string | null;
@@ -7,7 +7,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+type AuthContextMemo = () => AuthContextType 
+const AuthContext = createContext< AuthContextMemo| undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }):ReactNode => {
   const [token, setToken] = useState<string | null>(sessionStorage.getItem('token'));
@@ -23,15 +24,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }):ReactNode =>
   };
 
   const isAuthenticated = !!token;
-
+  const val = useCallback(() =>({ token, login, logout, isAuthenticated }),[])
   return (
-    <AuthContext.Provider value={{ token, login, logout, isAuthenticated }}>
+    <AuthContext.Provider value={val}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = (): AuthContextType => {
+export const useAuth = (): AuthContextMemo => {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');

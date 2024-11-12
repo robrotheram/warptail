@@ -71,8 +71,7 @@ export const RouteList = () => {
       return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
     });
   
-    return <>
-      <Card>
+    return <Card>
         <CardHeader className='flex flex-row justify-between'>
           <div className='space-y-1.5 flex flex-col'>
             <CardTitle>Services</CardTitle>
@@ -107,7 +106,4 @@ export const RouteList = () => {
           </Table>
         </CardContent>
       </Card>
-  
-      
-    </>
   }

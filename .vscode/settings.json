@@ -1,6 +1,2 @@
 {
-    "sonarlint.connectedMode.project": {
-        "connectionId": "https-sonarqube-exceptionerror-io-",
-        "projectKey": "robrotheram_warptail_35071b88-5104-43bf-95bf-0d39d73a98fe"
-    }
 }

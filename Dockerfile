@@ -1,5 +1,5 @@
 FROM node:lts-alpine AS ui_builder
-RUN apk update && apk add git
+RUN apk update && apk  --no-cache  add git
 ARG VER
 WORKDIR /dashboard
 COPY dashboard .

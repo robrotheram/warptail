@@ -97,7 +97,7 @@ const AUTH_URL = `${BASE_URL}/auth`
 
 const getAuth = () => {
     return {
-        Authorization: token.get() || ""
+        Authorization: token.get() ?? ""
     } as Record<string, string>
 }
 
