@@ -49,7 +49,7 @@ export const HeaderNav = () => {
       <SheetContent side="left" className="">
         <div className="w-full">
           <Link to="/" className="group w-full flex items-center justify-left gap-4 rounded-full">
-            <img src="/logo.png" className="h-14 w-14 transition-all" />
+            <img alt="warptail logo" src="/logo.png" className="h-14 w-14 transition-all" />
             <h1 className="text-2xl">WarpTail</h1>
           </Link>
         </div>
@@ -80,7 +80,7 @@ export const SideNav = () => {
   return <aside className="fixed inset-y-0 left-0 z-10 hidden w-14 flex-col border-r bg-background sm:flex justify-between">
     <nav className="flex flex-col items-center gap-4 px-2 sm:py-5">
       <Link to="/" className="group flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-full">
-        <img src="/logo.png" className="h-full w-full transition-all group-hover:scale-110" />
+        <img alt="warptail logo" src="/logo.png" className="h-full w-full transition-all group-hover:scale-110" />
         <span className="sr-only">Load Balancer</span>
       </Link>
       {Links.map((link: LinksProps) =>

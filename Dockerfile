@@ -2,14 +2,14 @@ FROM node:lts-alpine AS ui_builder
 RUN apk update && apk add git
 ARG VER
 WORKDIR /dashboard
-ADD dashboard .
-RUN npm i; npm run build; 
+COPY dashboard .
+RUN npm i --ignore-scripts; npm run build; 
 
 
 FROM golang:1.23 AS go_builder
 ARG VER
 WORKDIR /server
-ADD . .
+COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build
 
 

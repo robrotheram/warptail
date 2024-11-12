@@ -74,7 +74,7 @@ function applyMovingAverage(points: TimeSeriesPoint[], windowSize: number): Time
 export function getLast10MinutesData(points: TimeSeriesPoint[]): TimeSeriesPoint[] {
   if (points.length === 0) return [];
 
-  points.map(point => {point.timestamp = new Date(point.timestamp)});
+  points.forEach(point => {point.timestamp = new Date(point.timestamp)});
   const now = new Date();
   const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000); // Current time minus 10 minutes
   const filteredPoints = points.filter(point => point.timestamp >= tenMinutesAgo);

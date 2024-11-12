@@ -36,7 +36,7 @@ export const LoginPage: React.FC = () => {
   return (
     <Card className="col-span-2 my-10 mx-auto max-w-screen-sm">
       <CardHeader className="pb-2 flex flex-row items-center justify-center gap-4">
-        <img src='/logo.png' className='w-20' />
+        <img alt="warptail-logo" src='/logo.png' className='w-20' />
         <CardTitle className="text-3xl">WarpTail</CardTitle>
       </CardHeader>
       <CardContent className='space-y-3'>

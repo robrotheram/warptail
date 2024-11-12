@@ -16,6 +16,11 @@ spec:
       containers:
         - name: warptail-container
           image: app-image
+          resources:
+            requests:
+              ephemeral-storage: "100Mi"
+              memory: 100Mi
+              cpu: 0.5
           ports:
             - containerPort: 8081
           env:
