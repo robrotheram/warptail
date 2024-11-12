@@ -9,7 +9,10 @@ RUN npm i --ignore-scripts; npm run build;
 FROM golang:1.23 AS go_builder
 ARG VER
 WORKDIR /server
-COPY . .
+COPY pkg . 
+COPY go.mod .
+COPY go.sum .
+COPY main.go .
 RUN CGO_ENABLED=0 GOOS=linux go build
 
 
