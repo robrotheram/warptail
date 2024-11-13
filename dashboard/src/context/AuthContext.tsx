@@ -1,31 +1,43 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useMemo, useCallback } from 'react';
 
 interface AuthContextType {
   token: string | null;
+  isAuthenticated: boolean;
   login: (newToken: string) => void;
   logout: () => void;
-  isAuthenticated: boolean;
 }
 
-const AuthContext = createContext< AuthContextType| undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }):ReactNode => {
-  const [token, setToken] = useState<string | null>(sessionStorage.getItem('token'));
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [token, setToken] = useState<string | null>(() => 
+    sessionStorage.getItem('token')
+  );
 
-  const login = (newToken: string) => {
+  const login = useCallback((newToken: string) => {
     sessionStorage.setItem('token', newToken);
     setToken(newToken);
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     sessionStorage.removeItem('token');
     setToken(null);
-  };
+  }, []);
 
   const isAuthenticated = !!token;
-  const val = { token, login, logout, isAuthenticated }
+
+  const value = useMemo(
+    () => ({
+      token,
+      isAuthenticated,
+      login,
+      logout,
+    }),
+    [token, isAuthenticated, login, logout]
+  );
+
   return (
-    <AuthContext.Provider value={val}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
