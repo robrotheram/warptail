@@ -42,7 +42,6 @@ func NewService(config utils.ServiceConfig, server *tsnet.Server) *Service {
 }
 
 func (svc *Service) Update(config utils.ServiceConfig, server *tsnet.Server) *RouterError {
-
 	if svc.Name != config.Name {
 		svc.Name = config.Name
 		svc.Id = slug.Make(config.Name)
@@ -62,8 +61,12 @@ func (svc *Service) Update(config utils.ServiceConfig, server *tsnet.Server) *Ro
 			newRoutes = append(newRoutes, cfg)
 		}
 	}
+	svc.pruneRoutes(existingRoutes)
+	svc.updateNewRoutes(existingRoutes, newRoutes, server)
+	return nil
+}
 
-	//delete route if they do not exist
+func (svc *Service) pruneRoutes(existingRoutes []Route) {
 	for _, route := range svc.Routes {
 		if _, err := containsRoute(existingRoutes, route.Config()); err != nil {
 			if svc.Enabled {
@@ -71,7 +74,9 @@ func (svc *Service) Update(config utils.ServiceConfig, server *tsnet.Server) *Ro
 			}
 		}
 	}
-	//create the new routes
+}
+
+func (svc *Service) updateNewRoutes(existingRoutes []Route, newRoutes []utils.RouteConfig, server *tsnet.Server) {
 	for _, cfg := range newRoutes {
 		if route, err := NewRoute(cfg, server); err == nil {
 			if svc.Enabled {
@@ -88,7 +93,6 @@ func (svc *Service) Update(config utils.ServiceConfig, server *tsnet.Server) *Ro
 			}
 		}
 	}
-	return nil
 }
 
 type ServiceStatus struct {

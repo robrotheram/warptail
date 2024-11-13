@@ -9,6 +9,8 @@ import (
 	"tailscale.com/tsnet"
 )
 
+var ServiceNotFoundError = NotFoundError("service not found")
+
 type Router struct {
 	Services    map[string]*Service
 	ts          *tsnet.Server
@@ -91,7 +93,7 @@ func (r *Router) Get(id string) (*Service, *RouterError) {
 	if svc, ok := r.Services[id]; ok {
 		return svc, nil
 	}
-	return nil, NotFoundError("service not found")
+	return nil, ServiceNotFoundError
 }
 
 func (r *Router) GetHttpRoute(domain string) (*HTTPRoute, *RouterError) {
@@ -110,7 +112,7 @@ func (r *Router) GetHttpRoute(domain string) (*HTTPRoute, *RouterError) {
 func (r *Router) Update(id string, svc utils.ServiceConfig) (*Service, *RouterError) {
 	existing, ok := r.Services[id]
 	if !ok {
-		return nil, NotFoundError("service not found")
+		return nil, ServiceNotFoundError
 	}
 	existing.Update(svc, r.ts)
 	if id != existing.Id {
@@ -123,7 +125,7 @@ func (r *Router) Update(id string, svc utils.ServiceConfig) (*Service, *RouterEr
 func (r *Router) Remove(id string) *RouterError {
 	svc, ok := r.Services[id]
 	if !ok {
-		return NotFoundError("service not found")
+		return ServiceNotFoundError
 	}
 	for _, route := range svc.Routes {
 		route.Stop()

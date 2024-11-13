@@ -13,6 +13,7 @@ spec:
         app: warptail
     spec:
       serviceAccountName: warptail
+      automountServiceAccountToken: false
       containers:
         - name: warptail-container
           image: app-image:0.0.1
