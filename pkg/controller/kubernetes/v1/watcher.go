@@ -38,8 +38,7 @@ func (r *WarpTailServiceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 				return ctrl.Result{}, err
 			}
 		}
-	}
-	if controllerutil.ContainsFinalizer(&wtservice, myFinalizerName) {
+	} else if controllerutil.ContainsFinalizer(&wtservice, myFinalizerName) {
 		if err := r.RemoveService(ctx, wtservice); err != nil {
 			return ctrl.Result{}, err
 		}
