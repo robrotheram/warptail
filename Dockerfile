@@ -1,18 +1,18 @@
 FROM node:lts-alpine AS ui_builder
 RUN apk update && apk  --no-cache  add git
 ARG VER
+COPY dashboard /dashboard
 WORKDIR /dashboard
-COPY dashboard .
-RUN npm i --ignore-scripts; npm run build; 
+RUN npm i; npm run build; 
 
 
 FROM golang:1.23 AS go_builder
 ARG VER
 WORKDIR /server
-COPY pkg . 
-COPY go.mod .
-COPY go.sum .
-COPY main.go .
+COPY pkg pkg 
+COPY go.mod go.mod 
+COPY go.sum go.sum
+COPY main.go main.go
 RUN CGO_ENABLED=0 GOOS=linux go build
 
 
