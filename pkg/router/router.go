@@ -97,7 +97,7 @@ func (r *Router) Get(id string) (*Service, *utils.RouterError) {
 func (r *Router) GetHttpRoute(domain string) (*HTTPRoute, *utils.RouterError) {
 	for _, svc := range r.Services {
 		for _, route := range svc.Routes {
-			if route.Config().Type == utils.HTTP {
+			if route.Config().Type == utils.HTTP || route.Config().Type == utils.HTTPS {
 				if route.Config().Domain == domain {
 					return route.(*HTTPRoute), nil
 				}
