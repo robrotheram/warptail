@@ -57,6 +57,8 @@ spec:
                       type: object
                     port:
                       type: integer
+                    private:
+                      type: boolean
                     type:
                       type: string
                   required:
