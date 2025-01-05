@@ -5,10 +5,6 @@ logging:
 tailscale:
   api_key: ""
   hostnmae: "TS_HOSTNAME"
-dashboard:
-  enabled: true
-  token: CHANGEME
-  port: :8001
 services:
 - name: test
   enabled: true
@@ -18,3 +14,23 @@ services:
     machine:
       address: 192.168.0.104
       port: 30013
+
+database:
+  connection_type: sqlite #  sqlite, postgress, mysql
+  connection: file:warptail.db?cache=shared
+
+application:
+  port: 8080  # The main port the application listens on
+  authentication:
+    baseURL: http://localhost:8001
+    secretKey: CHANGE_ME 
+    provider: # Optional SSO provider configuration
+      name: zitadle
+      type: openid # Only openID with PKCE support is supported
+      clientID: "<CLIENT_ID>"
+      providerURL: "https://auth.example.com"
+  acme: # Optional SSL 
+    enabled: true  # Enable ACME SSL configuration
+    ssl_port: 443  # Port for SSL/TLS connections
+    certificates_dir: /etc/proxy/certs  # Directory to store SSL certificates
+    portal_domain: warptail.excptionerror.local  # SSL domain for certificate 

@@ -13,8 +13,16 @@ export enum RouterType {
     UDP = "udp",
 }
 
+export enum Role {
+    ADMIN = "admin",
+    USER = "user",
+}
+
+
 export interface Config {
-    EDIT_MODE: boolean
+    read_only: boolean
+    auth_type: string
+    auth_name: string
 }
 
 
@@ -35,6 +43,7 @@ export interface Service {
 
 export interface Route {
     key? : number
+    private: boolean
     type: string
     domain?: string
     port?: number
@@ -75,11 +84,23 @@ export interface Dashboard {
 }
 
 export interface Login {
+    username: string
     password: string
+}
+
+
+export interface User {
+    id?: string
+    name: string
+    password?: string
+    email: string
+    role?: Role
+    created_at?: Date
 }
 
 export interface LoginToken {
     authorization_token: string
+    role: Role
 }
 
 export const token = {
@@ -92,14 +113,15 @@ let BASE_URL = ""
 if (isDev) {
     BASE_URL = "http://localhost:8001"
 }
-const API_URL = `${BASE_URL}/api`
-const AUTH_URL = `${BASE_URL}/auth`
+export const API_URL = `${BASE_URL}/api`
+export const AUTH_URL = `${BASE_URL}/auth`
 
-const getAuth = () => {
+const getAuth = (tkn?: string) => {
     return {
-        Authorization: token.get() ?? ""
+        Authorization: token.get() ?? tkn
     } as Record<string, string>
 }
+
 
 
 
@@ -183,6 +205,45 @@ export const getTSConfig = async (): Promise<Tailsale> => {
 export const updateTSConfig = async (config: Tailsale): Promise<Tailsale> => {
     const response = await axios.post(`${API_URL}/settings/tailscale`, config, {
         headers: getAuth(),
+    });
+    return response.data;
+}
+
+
+
+export const getUsers = async (): Promise<User[]> => {
+    const response = await axios.get(`${API_URL}/user`, {
+        headers: getAuth(),
+    });
+    return response.data;
+}
+
+export const createUser = async (user: User): Promise<User> => {
+    await axios.put(`${API_URL}/user`, user, {
+        headers: getAuth(),
+    });
+    return user;
+}
+
+export const updateUser = async (user: User): Promise<User> => {
+    console.log("HELLO")
+    await axios.post(`${API_URL}/user/${user.id}`, user, {
+        headers: getAuth(),
+    });
+    return user;
+}
+
+export const deleteUser = async (user: User): Promise<User> => {
+    await axios.delete(`${API_URL}/user/${user.id}`, {
+        headers: getAuth(),
+    });
+    return user;
+}
+
+
+export const getProfile = async (token?: string): Promise<User> => {
+    const response = await axios.get(`${AUTH_URL}/profile`, {
+        headers: getAuth(token),
     });
     return response.data;
 }

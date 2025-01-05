@@ -41,7 +41,7 @@ func NewService(config utils.ServiceConfig, server *tsnet.Server) *Service {
 	}
 }
 
-func (svc *Service) Update(config utils.ServiceConfig, server *tsnet.Server) *RouterError {
+func (svc *Service) Update(config utils.ServiceConfig, server *tsnet.Server) *utils.RouterError {
 	if svc.Name != config.Name {
 		svc.Name = config.Name
 		svc.Id = slug.Make(config.Name)
@@ -56,6 +56,7 @@ func (svc *Service) Update(config utils.ServiceConfig, server *tsnet.Server) *Ro
 	newRoutes := []utils.RouteConfig{}
 	for _, cfg := range config.Routes {
 		if route, err := containsRoute(svc.Routes, cfg); err == nil {
+			route.Update(cfg)
 			existingRoutes = append(existingRoutes, route)
 		} else {
 			newRoutes = append(newRoutes, cfg)

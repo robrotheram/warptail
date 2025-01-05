@@ -4,18 +4,16 @@ import (
 	"net/http"
 	"warptail/pkg/utils"
 
-	"github.com/go-logr/logr"
 	"github.com/gosimple/slug"
 	"tailscale.com/tsnet"
 )
 
-var ServiceNotFoundError = NotFoundError("service not found")
+var ServiceNotFoundError = utils.NotFoundError("service not found")
 
 type Router struct {
 	Services    map[string]*Service
 	ts          *tsnet.Server
 	Controllers []Controller
-	logger      logr.Logger
 }
 
 type RouteInfo struct {
@@ -26,8 +24,8 @@ type RouteInfo struct {
 
 func NewRouter() *Router {
 	router := &Router{
-		Services: make(map[string]*Service),
-		logger:   utils.Logger,
+		Services:    make(map[string]*Service),
+		Controllers: []Controller{},
 	}
 	return router
 }
@@ -67,9 +65,9 @@ func (r *Router) DoesExists(name string) bool {
 	return ok
 }
 
-func (r *Router) Create(svc utils.ServiceConfig) (*Service, *RouterError) {
+func (r *Router) Create(svc utils.ServiceConfig) (*Service, *utils.RouterError) {
 	if r.DoesExists(svc.Name) {
-		return nil, CustomError(http.StatusConflict, "service already exists unable to load config")
+		return nil, utils.CustomError(http.StatusConflict, "service already exists unable to load config")
 	}
 	service := NewService(svc, r.ts)
 	r.Services[service.Id] = service
@@ -89,14 +87,14 @@ func (r *Router) All() []Service {
 	return svcs
 }
 
-func (r *Router) Get(id string) (*Service, *RouterError) {
+func (r *Router) Get(id string) (*Service, *utils.RouterError) {
 	if svc, ok := r.Services[id]; ok {
 		return svc, nil
 	}
 	return nil, ServiceNotFoundError
 }
 
-func (r *Router) GetHttpRoute(domain string) (*HTTPRoute, *RouterError) {
+func (r *Router) GetHttpRoute(domain string) (*HTTPRoute, *utils.RouterError) {
 	for _, svc := range r.Services {
 		for _, route := range svc.Routes {
 			if route.Config().Type == utils.HTTP {
@@ -106,10 +104,10 @@ func (r *Router) GetHttpRoute(domain string) (*HTTPRoute, *RouterError) {
 			}
 		}
 	}
-	return nil, NotFoundError("route not found")
+	return nil, utils.NotFoundError("route not found")
 }
 
-func (r *Router) Update(id string, svc utils.ServiceConfig) (*Service, *RouterError) {
+func (r *Router) Update(id string, svc utils.ServiceConfig) (*Service, *utils.RouterError) {
 	existing, ok := r.Services[id]
 	if !ok {
 		return nil, ServiceNotFoundError
@@ -122,7 +120,7 @@ func (r *Router) Update(id string, svc utils.ServiceConfig) (*Service, *RouterEr
 	return existing, nil
 }
 
-func (r *Router) Remove(id string) *RouterError {
+func (r *Router) Remove(id string) *utils.RouterError {
 	svc, ok := r.Services[id]
 	if !ok {
 		return ServiceNotFoundError
@@ -150,8 +148,4 @@ func (r *Router) StopAll() {
 	for _, svc := range r.Services {
 		svc.Stop()
 	}
-}
-
-func (r *Router) GetLogger() logr.Logger {
-	return r.logger
 }

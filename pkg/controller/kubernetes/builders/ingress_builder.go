@@ -48,7 +48,7 @@ func (ctrl *IngressBuilder) build(routes []utils.RouteConfig) networkingv1.Ingre
 	}
 
 	for _, route := range routes {
-		if route.Type != utils.HTTP {
+		if route.Type != utils.HTTP && route.Type != utils.HTTPS {
 			continue
 		}
 		rule := networkingv1.IngressRule{
@@ -72,12 +72,14 @@ func (ctrl *IngressBuilder) build(routes []utils.RouteConfig) networkingv1.Ingre
 				},
 			},
 		}
-		tlsRule := networkingv1.IngressTLS{
-			Hosts:      []string{route.Domain},
-			SecretName: ctrl.Certificate.SecretName,
+		if route.Type == utils.HTTPS {
+			tlsRule := networkingv1.IngressTLS{
+				Hosts:      []string{route.Domain},
+				SecretName: ctrl.Certificate.SecretName,
+			}
+			ingress.Spec.Rules = append(ingress.Spec.Rules, rule)
+			ingress.Spec.TLS = append(ingress.Spec.TLS, tlsRule)
 		}
-		ingress.Spec.Rules = append(ingress.Spec.Rules, rule)
-		ingress.Spec.TLS = append(ingress.Spec.TLS, tlsRule)
 	}
 	return ingress
 }

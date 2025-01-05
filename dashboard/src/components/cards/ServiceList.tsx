@@ -54,7 +54,7 @@ export const CreateServiceModel = () => {
 
 export const RouteList = () => {
     const navigate = useNavigate({ from: '/' })
-    const {EDIT_MODE:canEdit} = useConfig()
+    const {read_only:canEdit} = useConfig()
     const { isPending, error, data, isLoading } = useQuery({
       queryKey: ['repoData'],
       queryFn: getServices,

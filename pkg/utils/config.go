@@ -1,21 +1,31 @@
 package utils
 
 import (
+	"context"
 	"crypto/md5"
-	"crypto/rand"
-	"fmt"
 	"log"
-	"log/slog"
 	"os"
 	"reflect"
+	"warptail/pkg/migrations"
 
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/migrate"
 	"gopkg.in/yaml.v2"
 )
 
-type DashboardConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Token   string `yaml:"token"`
-	Port    string `yaml:"port"`
+type AuthenticationProvider struct {
+	Name        string `yaml:"name"`
+	Type        string `yaml:"type"`
+	ClientID    string `yaml:"clientID,omitempty"`
+	ProviderURL string `yaml:"providerURL,omitempty"`
+	BaseURL     string `yaml:"baseURL,omitempty"`
+	Secret      string `yaml:"session_secret,omitempty"`
+}
+
+type AuthenticationConfig struct {
+	BaseURL  string                 `yaml:"baseURL"`
+	Secret   string                 `yaml:"secretKey"`
+	Provider AuthenticationProvider `yaml:"provider"`
 }
 
 type TailscaleConfig struct {
@@ -24,11 +34,12 @@ type TailscaleConfig struct {
 }
 
 type Config struct {
-	Tailscale  TailscaleConfig  `yaml:"tailscale"`
-	Dasboard   DashboardConfig  `yaml:"dashboard"`
-	Kubernetes KubernetesConfig `yaml:"kubernetes,omitempty"`
-	Services   []ServiceConfig  `yaml:"services"`
-	Logging    LoggingConfig    `yaml:"logging"`
+	Tailscale   TailscaleConfig   `yaml:"tailscale"`
+	Database    DatabaseConfig    `yaml:"database"`
+	Application ApplicationConfig `yaml:"application"`
+	Kubernetes  KubernetesConfig  `yaml:"kubernetes,omitempty"`
+	Services    []ServiceConfig   `yaml:"services"`
+	Logging     LoggingConfig     `yaml:"logging"`
 }
 
 func ConfigHash(path string) [16]byte {
@@ -55,15 +66,6 @@ func LoadConfig(configPath string) Config {
 }
 
 func (config *Config) validate() {
-	if config.Dasboard.Enabled && config.Dasboard.Port == "" {
-		config.Dasboard.Port = ":8081"
-	}
-
-	if config.Dasboard.Enabled && config.Dasboard.Token == "" {
-		config.Dasboard.Token = tokenGenerator(24)
-		slog.Info("New Dashboard Token", "token", config.Dasboard.Token)
-	}
-
 	if !IsEmptyStruct(config.Kubernetes) {
 		if len(config.Kubernetes.Ingress.Name) == 0 {
 			config.Kubernetes.Certificate.Name = "warptail-route-ingress"
@@ -91,8 +93,28 @@ func ContainsService(name string, configs []ServiceConfig) bool {
 	return false
 }
 
-func tokenGenerator(length int) string {
-	b := make([]byte, length)
-	rand.Read(b)
-	return fmt.Sprintf("%x", b)
+func NewDB(config Config) *bun.DB {
+
+	db, err := NewDatabase(config.Database)
+	if err != nil {
+		panic(err)
+	}
+	migrator := migrate.NewMigrator(db, migrations.Migrations)
+	err = migrator.Init(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	group, err := migrator.Migrate(context.Background())
+	if err != nil {
+		panic(err)
+	}
+
+	if group.ID == 0 {
+		Logger.Info("there are no new migrations to run")
+		return db
+	}
+
+	Logger.Info("migrated to", "group", group)
+
+	return db
 }

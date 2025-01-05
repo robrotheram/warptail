@@ -31,16 +31,15 @@ func NewConfigController(path string, router *router.Router) (*ConfigCtrl, error
 	return &ctrl, nil
 }
 func (ctrl *ConfigCtrl) Save(config utils.Config) {
-	logger := ctrl.router.GetLogger()
 	b, err := yaml.Marshal(config)
 	if err != nil {
-		logger.Error(err, "unable to marshal config")
+		utils.Logger.Error(err, "unable to marshal config")
 	}
 	err = os.WriteFile(ctrl.path, b, os.ModeDir)
 	if err != nil {
-		logger.Error(err, "unable to write config")
+		utils.Logger.Error(err, "unable to write config")
 	}
-	logger.Info("config saved")
+	utils.Logger.Info("config saved")
 }
 
 func (ctrl *ConfigCtrl) Update(router *router.Router) {
@@ -64,7 +63,6 @@ func (ctrl *ConfigCtrl) Update(router *router.Router) {
 }
 
 func (ctrl *ConfigCtrl) Watch() error {
-	logger := ctrl.router.GetLogger()
 	go func() {
 		for {
 			select {
@@ -75,7 +73,7 @@ func (ctrl *ConfigCtrl) Watch() error {
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					currentHash := utils.ConfigHash(ctrl.path)
 					if currentHash != ctrl.lastHash {
-						logger.Info("file modified by an external source", "source", event.Name)
+						utils.Logger.Info("file modified by an external source", "source", event.Name)
 						ctrl.lastHash = currentHash
 						config := utils.LoadConfig(ctrl.path)
 						ctrl.router.Reload(config)
@@ -85,7 +83,7 @@ func (ctrl *ConfigCtrl) Watch() error {
 				if !ok {
 					return
 				}
-				logger.Error(err, "unable watch for config changes")
+				utils.Logger.Error(err, "unable watch for config changes")
 			}
 		}
 	}()

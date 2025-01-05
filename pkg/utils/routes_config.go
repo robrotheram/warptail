@@ -17,6 +17,7 @@ type ServiceConfig struct {
 
 type RouteConfig struct {
 	Type    RouteType `yaml:"type" json:"type"`
+	Private bool      `yaml:"private" json:"private"`
 	Domain  string    `yaml:"domain,omitempty" json:"domain,omitempty"`
 	Port    int       `yaml:"port,omitempty" json:"port,omitempty"`
 	Machine Machine   `yaml:"machine" json:"machine"`

@@ -36,7 +36,9 @@ func NewCertifcationBuilder(config utils.KubernetesConfig, k8cfg *rest.Config) *
 func (ctrl *CertifcationBuilder) build(routes []utils.RouteConfig) certmanagerv1.Certificate {
 	DNSNames := []string{}
 	for _, route := range routes {
-		DNSNames = append(DNSNames, route.Domain)
+		if route.Type == utils.HTTPS {
+			DNSNames = append(DNSNames, route.Domain)
+		}
 	}
 
 	return certmanagerv1.Certificate{

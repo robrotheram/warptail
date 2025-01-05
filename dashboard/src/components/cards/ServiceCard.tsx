@@ -2,7 +2,6 @@ import { useNavigate } from '@tanstack/react-router'
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -26,20 +25,21 @@ import { RouteStatusCard } from './RouteStatusCard'
 import { RouterChart } from './ChartCard'
 import { ErrorCard } from './ErrorCard'
 import { useConfig } from '@/context/ConfigContext'
+import { Label } from '../ui/label'
 
 
 
 type ServiceCardProps = {
-    id: string
-    edit?: boolean
-  }
-export const ServiceCard = ({id, edit}:ServiceCardProps) => {
+  id: string
+  edit?: boolean
+}
+export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
   const navigate = useNavigate()
-  const {EDIT_MODE:canEdit} = useConfig()
+  const { read_only: canEdit } = useConfig()
 
   const queryClient = useQueryClient()
   const { isPending, isError, data, isLoading } = useQuery({
-    queryKey: ['route', id ],
+    queryKey: ['route', id],
     retry: false,
     queryFn: () => getService(id),
   })
@@ -54,18 +54,18 @@ export const ServiceCard = ({id, edit}:ServiceCardProps) => {
   const updateStatus = useMutation({
     mutationFn: service?.enabled ? stopService : startService,
     onSuccess: (svc) => {
-      queryClient.setQueryData(['route', svc.id ], svc)
+      queryClient.setQueryData(['route', svc.id], svc)
     },
   })
 
   const modifyService = useMutation({
     mutationFn: updateService,
     onSuccess: (svc) => {
-        if (svc.id === id){
-            queryClient.invalidateQueries({queryKey :['route', svc.id ]});
-            return
-        }
-        navigate({ to: `/routes/${svc.id}` })
+      if (svc.id === id) {
+        queryClient.invalidateQueries({ queryKey: ['route', svc.id] });
+        return
+      }
+      navigate({ to: `/routes/${svc.id}` })
     },
   })
   const deleteFn = useMutation({
@@ -74,13 +74,13 @@ export const ServiceCard = ({id, edit}:ServiceCardProps) => {
   })
 
 
-  if (isError){
-    return <ErrorCard/>
+  if (isError) {
+    return <ErrorCard />
   }
   if (isPending || isLoading || !service) {
     return 'LOADING'
-  } 
-  
+  }
+
   const toggleStatus = () => {
     updateStatus.mutate(service.id)
   }
@@ -98,15 +98,17 @@ export const ServiceCard = ({id, edit}:ServiceCardProps) => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    setService({...service, [name]: value})
+    setService({ ...service, [name]: value })
   }
   const addRoute = () => {
     const routes = [{
       type: "",
+      private: false,
       machine: {
         address: "",
         port: 0,
       }
+      
     }, ...service.routes]
     setService({ ...service, routes })
   }
@@ -135,18 +137,15 @@ export const ServiceCard = ({id, edit}:ServiceCardProps) => {
       <div className="grid grid-cols-1 gap-0 space-y-6 md:grid-cols-3  md:gap-6  md:space-y-0">
         <Card className="col-span-2 flex flex-col justify-between">
           <CardContent>
-            <CardHeader className='px-0'>
-            {edit ? <Input id="name" name="name" value={service.name} onChange={handleInputChange}/>:
-            <CardTitle>{service.name}</CardTitle>
-            }
+            <CardHeader className='flex flex-col px-0 space-y-4'>
+              {edit &&<h1 className='text-3xl'>Edit the service</h1>}
+              {!edit && <CardTitle>{service.name}</CardTitle>}
+              {edit &&<div className="flex flex-col gap-2">
+                <Label htmlFor="name">Service Name:</Label>
+                <Input id="name" name="name" value={service.name} onChange={handleInputChange} />
+              </div>}
             </CardHeader>
-            {edit ? 'Edit the firewall route details below' : 'View firewall route details'}
           </CardContent>
-          {edit && <CardFooter>
-            <Button onClick={addRoute} className='w-full md:w-auto'> 
-              <PlusIcon className='mr-2' /> New Route
-            </Button>
-          </CardFooter>}
         </Card>
         <Card>
           <CardHeader className='py-4'>
@@ -161,7 +160,7 @@ export const ServiceCard = ({id, edit}:ServiceCardProps) => {
             </Button>
             }
             {edit && canEdit && (
-              <Button onClick={()=>navigate({ to: `/routes/${data.id}` })} variant="secondary" className="w-full">
+              <Button onClick={() => navigate({ to: `/routes/${data.id}` })} variant="secondary" className="w-full">
                 Cancel
               </Button>
             )}
@@ -178,7 +177,7 @@ export const ServiceCard = ({id, edit}:ServiceCardProps) => {
               </Button>
             )}
             {!edit && canEdit && (
-              <Button onClick={()=>navigate({ to: `/routes/${data.id}/edit` })} className="w-full">
+              <Button onClick={() => navigate({ to: `/routes/${data.id}/edit` })} className="w-full">
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </Button>
@@ -186,12 +185,20 @@ export const ServiceCard = ({id, edit}:ServiceCardProps) => {
           </CardContent>
         </Card>
       </div>
-      <div className='flex flex-col gap-4'>
-        {service.routes.map(route => edit ? 
-          <RouteEditCard route={route} key={route.key} updateRoute={updateRoute} removeRoute={removeRoute}/> : 
-          <RouteStatusCard route={route} key={route.key} />)}
-      </div>
-      <RouterChart service={service} />
+      <Card>
+        <CardHeader className='flex flex-row justify-between gap-8 items-center '>
+          <h2 className='text-2xl'>Routes</h2>
+          {edit && <Button onClick={addRoute} className='w-full md:w-auto'>
+            <PlusIcon className='mr-2' /> New Route
+          </Button>}
+        </CardHeader>
+        <CardContent className='flex flex-col gap-4'>
+          {service.routes.map(route => edit ?
+            <RouteEditCard route={route} key={route.key} updateRoute={updateRoute} removeRoute={removeRoute} /> :
+            <RouteStatusCard route={route} key={route.key} />)}
+        </CardContent>
+      </Card>
+      {!edit && <RouterChart service={service} />}
     </div>
   )
 }

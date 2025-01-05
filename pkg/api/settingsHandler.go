@@ -7,7 +7,7 @@ import (
 )
 
 func (api *api) handleTailscaleSettings(w http.ResponseWriter, r *http.Request) {
-	WriteData(w, api.Router.GetTailScaleConfig())
+	utils.WriteData(w, api.Router.GetTailScaleConfig())
 }
 
 func (api *api) handleUpdateTailscaleSettings(w http.ResponseWriter, r *http.Request) {
@@ -15,5 +15,5 @@ func (api *api) handleUpdateTailscaleSettings(w http.ResponseWriter, r *http.Req
 	var tsc utils.TailscaleConfig
 	decoder.Decode(&tsc)
 	api.SaveTailScale(tsc)
-	WriteStatus(w, http.StatusOK)
+	utils.WriteStatus(w, http.StatusOK)
 }

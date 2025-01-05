@@ -4,11 +4,31 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"warptail/pkg/utils"
 )
 
+type UIConfig struct {
+	AuthenticationType string `json:"auth_type"`
+	AuthenticationName string `json:"auth_name"`
+	ReadOnly           bool   `json:"read_only"`
+}
 type SPAHandler struct {
 	StaticPath string
 	IndexPath  string
+	Config     UIConfig
+}
+
+func NewUI(config utils.Config) SPAHandler {
+	spa := SPAHandler{
+		StaticPath: "./dashboard/dist",
+		IndexPath:  "index.html",
+		Config: UIConfig{
+			AuthenticationType: config.Application.Authentication.Provider.Type,
+			AuthenticationName: config.Application.Authentication.Provider.Name,
+			ReadOnly:           utils.IsEmptyStruct(config.Kubernetes),
+		},
+	}
+	return spa
 }
 
 func (h SPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -27,4 +47,8 @@ func (h SPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.FileServer(http.Dir(h.StaticPath)).ServeHTTP(w, r)
+}
+
+func (h SPAHandler) HandleConfig(w http.ResponseWriter, r *http.Request) {
+	utils.WriteData(w, h.Config)
 }

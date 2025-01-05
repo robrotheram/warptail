@@ -23,7 +23,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }): ReactNode
 export const useConfig = (): Config => {
     const context = useContext(ConfigContext);
     if (!context) {
-        return {EDIT_MODE: true}
+        return {read_only: true, auth_type: "", auth_name: ""}
     }
     return context;
 };

@@ -1,7 +1,7 @@
 import { LogOut } from "lucide-react"
 import { Button } from "./components/ui/button"
 import { SheetTrigger, SheetContent, Sheet } from "./components/ui/sheet"
-import { MenuIcon, NetworkIcon, SettingsIcon } from "./Icons"
+import { MenuIcon, NetworkIcon, SettingsIcon, UsersIcon } from "./Icons"
 import { Link, useNavigate } from "@tanstack/react-router"
 import React from "react"
 import { useAuth } from "./context/AuthContext"
@@ -17,6 +17,12 @@ const Links = [
     to: "/routes",
     label: "Routes",
     icon: NetworkIcon,
+    className: "h-5 w-5"
+  },
+  {
+    to: "/users",
+    label: "Users",
+    icon: UsersIcon,
     className: "h-5 w-5"
   },
   {
@@ -38,7 +44,7 @@ export const HeaderNav = () => {
   }
 
 
-  return <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background sm:static sm:h-auto sm:border-0 sm:bg-transparent">
+  return <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background sm:static sm:h-auto sm:border-0 sm:bg-transparent px-2">
     <Sheet>
       <SheetTrigger asChild>
         <Button size="icon" variant="outline" className="sm:hidden">

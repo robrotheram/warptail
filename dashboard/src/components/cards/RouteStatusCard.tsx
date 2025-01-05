@@ -8,6 +8,7 @@ import {
   Network,
   Earth,
   Activity,
+  LockIcon,
 } from 'lucide-react'
 import { Route, RouterStatus, RouterType } from '../../lib/api'
 
@@ -15,7 +16,12 @@ type RouteCardProps = {
   route: Route
 }
 
-
+const RouteIcon = ({route}:RouteCardProps)=> {
+  if (route.type === RouterType.TCP || route.type === RouterType.UDP){
+    return <Network />
+  }
+  return route.private? <LockIcon />:<Earth/>
+}
 
 export const RouteStatusCard = ({ route }: RouteCardProps) => {
   const isActive = (route: Route): boolean => {
@@ -28,11 +34,9 @@ export const RouteStatusCard = ({ route }: RouteCardProps) => {
   }
   return (
     <Card>
-      <CardContent className="py-5 flex flex-col md:flex-row gap-4 justify-around items-center">
-        <div>
-          {route.type === RouterType.HTTP ? <Earth /> : <Network />}
-        </div>
-        <div>
+      <CardContent className="py-5 flex flex-col justify- items-center gap-4 md:grid grid-cols-10">
+        <RouteIcon route={route}/>
+        <div className='col-span-3'>
           {(route.type === RouterType.TCP || route.type === RouterType.UDP) &&
             <>Listening: {route.port}</>
           }
@@ -40,8 +44,8 @@ export const RouteStatusCard = ({ route }: RouteCardProps) => {
             <a href={`http://${route.domain}`}>http://{route.domain}</a>
           }
         </div>
-        <div>{route.machine.address}:{route.machine.port}</div>
-        <div className='flex gap-2'>
+        <div className='col-span-3'>{route.machine.address}:{route.machine.port}</div>
+        <div className='col-span-2 flex gap-2'>
           <Activity className={`h-5 w-5 ${isActive(route) ? 'text-green-500' : 'text-red-500'}`} />
           {isActive(route) && `${route.latency} ms`}
         </div>
@@ -49,7 +53,7 @@ export const RouteStatusCard = ({ route }: RouteCardProps) => {
           variant={
             route?.status === RouterStatus.RUNNING ? 'success' : 'destructive'
           }
-          className="text-xs px-2 py-1"
+          className="text-xs px-2 py-1 flex justify-center"
         >
           {route?.status}
         </Badge>

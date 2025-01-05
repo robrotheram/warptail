@@ -14,16 +14,16 @@ func (api *api) handleGetRoutes(w http.ResponseWriter, r *http.Request) {
 	for _, svc := range api.All() {
 		status = append(status, svc.Status(false))
 	}
-	WriteData(w, status)
+	utils.WriteData(w, status)
 }
 
 func (api *api) handleGetRoute(w http.ResponseWriter, r *http.Request) {
 	service, err := api.Router.Get(chi.URLParam(r, "id"))
 	if err != nil {
-		WriteErrorResponse(w, err)
+		utils.WriteErrorResponse(w, err)
 		return
 	}
-	WriteData(w, service.Status(true))
+	utils.WriteData(w, service.Status(true))
 }
 
 func (api *api) handleCreateRoute(w http.ResponseWriter, r *http.Request) {
@@ -32,11 +32,11 @@ func (api *api) handleCreateRoute(w http.ResponseWriter, r *http.Request) {
 	decoder.Decode(&config)
 	svc, err := api.Create(config)
 	if err != nil {
-		WriteErrorResponse(w, err)
+		utils.WriteErrorResponse(w, err)
 		return
 	}
 	api.Save()
-	writeResponse(w, http.StatusCreated, svc.Status(false))
+	utils.WriteResponse(w, http.StatusCreated, svc.Status(false))
 }
 
 func (api *api) handleUpdateRoute(w http.ResponseWriter, r *http.Request) {
@@ -47,40 +47,40 @@ func (api *api) handleUpdateRoute(w http.ResponseWriter, r *http.Request) {
 
 	service, err := api.Update(id, svc)
 	if err != nil {
-		WriteErrorResponse(w, err)
+		utils.WriteErrorResponse(w, err)
 		return
 	}
 	api.Save()
-	WriteData(w, service.Status(true))
+	utils.WriteData(w, service.Status(true))
 }
 
 func (api *api) handleDeleteRoute(w http.ResponseWriter, r *http.Request) {
 	if err := api.Remove(chi.URLParam(r, "id")); err != nil {
-		WriteErrorResponse(w, err)
+		utils.WriteErrorResponse(w, err)
 		return
 	}
 	api.Save()
-	WriteStatus(w, http.StatusOK)
+	utils.WriteStatus(w, http.StatusOK)
 }
 
 func (api *api) handleStartRoute(w http.ResponseWriter, r *http.Request) {
 	service, err := api.Router.Get(chi.URLParam(r, "id"))
 	if err != nil {
-		WriteErrorResponse(w, err)
+		utils.WriteErrorResponse(w, err)
 		return
 	}
 	service.Start()
 	api.Save()
-	WriteData(w, service.Status(true))
+	utils.WriteData(w, service.Status(true))
 }
 
 func (api *api) handleStopRoute(w http.ResponseWriter, r *http.Request) {
 	service, err := api.Router.Get(chi.URLParam(r, "id"))
 	if err != nil {
-		WriteErrorResponse(w, err)
+		utils.WriteErrorResponse(w, err)
 		return
 	}
 	service.Stop()
 	api.Save()
-	WriteData(w, service.Status(true))
+	utils.WriteData(w, service.Status(true))
 }

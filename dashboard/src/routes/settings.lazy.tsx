@@ -15,7 +15,7 @@ type TailScaleFormProps = {
 }
 const TailScaleForm = ({ config }: TailScaleFormProps) => {
     const [editMode, setEditMode] = useState(false)
-    const {EDIT_MODE:canEdit} = useConfig()
+    const {read_only:canEdit} = useConfig()
     const [editedRoute, setEditedRoute] = useState<Tailsale>(config)
     const queryClient = useQueryClient()
     const update = useMutation({

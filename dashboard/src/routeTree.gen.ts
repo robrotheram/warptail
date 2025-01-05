@@ -15,6 +15,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Route as rootRoute } from './routes/__root'
 import { Route as LoginImport } from './routes/login'
 import { Route as R404Import } from './routes/404'
+import { Route as UsersIndexImport } from './routes/users/index'
 import { Route as RoutesIndexImport } from './routes/routes/index'
 import { Route as RoutesServiceIndexImport } from './routes/routes/$service/index'
 import { Route as RoutesServiceEditImport } from './routes/routes/$service/edit'
@@ -45,6 +46,11 @@ const IndexLazyRoute = IndexLazyImport.update({
   path: '/',
   getParentRoute: () => rootRoute,
 } as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
+
+const UsersIndexRoute = UsersIndexImport.update({
+  path: '/users/',
+  getParentRoute: () => rootRoute,
+} as any)
 
 const RoutesIndexRoute = RoutesIndexImport.update({
   path: '/routes/',
@@ -100,6 +106,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoutesIndexImport
       parentRoute: typeof rootRoute
     }
+    '/users/': {
+      id: '/users/'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersIndexImport
+      parentRoute: typeof rootRoute
+    }
     '/routes/$service/edit': {
       id: '/routes/$service/edit'
       path: '/routes/$service/edit'
@@ -125,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/settings': typeof SettingsLazyRoute
   '/routes': typeof RoutesIndexRoute
+  '/users': typeof UsersIndexRoute
   '/routes/$service/edit': typeof RoutesServiceEditRoute
   '/routes/$service': typeof RoutesServiceIndexRoute
 }
@@ -135,6 +149,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/settings': typeof SettingsLazyRoute
   '/routes': typeof RoutesIndexRoute
+  '/users': typeof UsersIndexRoute
   '/routes/$service/edit': typeof RoutesServiceEditRoute
   '/routes/$service': typeof RoutesServiceIndexRoute
 }
@@ -146,6 +161,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/settings': typeof SettingsLazyRoute
   '/routes/': typeof RoutesIndexRoute
+  '/users/': typeof UsersIndexRoute
   '/routes/$service/edit': typeof RoutesServiceEditRoute
   '/routes/$service/': typeof RoutesServiceIndexRoute
 }
@@ -158,6 +174,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/settings'
     | '/routes'
+    | '/users'
     | '/routes/$service/edit'
     | '/routes/$service'
   fileRoutesByTo: FileRoutesByTo
@@ -167,6 +184,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/settings'
     | '/routes'
+    | '/users'
     | '/routes/$service/edit'
     | '/routes/$service'
   id:
@@ -176,6 +194,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/settings'
     | '/routes/'
+    | '/users/'
     | '/routes/$service/edit'
     | '/routes/$service/'
   fileRoutesById: FileRoutesById
@@ -187,6 +206,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SettingsLazyRoute: typeof SettingsLazyRoute
   RoutesIndexRoute: typeof RoutesIndexRoute
+  UsersIndexRoute: typeof UsersIndexRoute
   RoutesServiceEditRoute: typeof RoutesServiceEditRoute
   RoutesServiceIndexRoute: typeof RoutesServiceIndexRoute
 }
@@ -197,6 +217,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SettingsLazyRoute: SettingsLazyRoute,
   RoutesIndexRoute: RoutesIndexRoute,
+  UsersIndexRoute: UsersIndexRoute,
   RoutesServiceEditRoute: RoutesServiceEditRoute,
   RoutesServiceIndexRoute: RoutesServiceIndexRoute,
 }
@@ -218,6 +239,7 @@ export const routeTree = rootRoute
         "/login",
         "/settings",
         "/routes/",
+        "/users/",
         "/routes/$service/edit",
         "/routes/$service/"
       ]
@@ -236,6 +258,9 @@ export const routeTree = rootRoute
     },
     "/routes/": {
       "filePath": "routes/index.tsx"
+    },
+    "/users/": {
+      "filePath": "users/index.tsx"
     },
     "/routes/$service/edit": {
       "filePath": "routes/$service/edit.tsx"

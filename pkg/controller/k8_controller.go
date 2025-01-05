@@ -87,7 +87,6 @@ func NewK8Controller(cfg utils.KubernetesConfig) (*K8Controller, error) {
 }
 
 func (ctrl *K8Controller) Update(router *router.Router) {
-	logger := router.GetLogger()
 	routes := []utils.RouteConfig{}
 	for _, svc := range router.Services {
 		for _, route := range svc.Routes {
@@ -95,13 +94,13 @@ func (ctrl *K8Controller) Update(router *router.Router) {
 		}
 	}
 	if err := ctrl.LoadbalancerBuilder.Create(routes); err != nil {
-		logger.Error(err, "unable to create Loadbalancer")
+		utils.Logger.Error(err, "unable to create Loadbalancer")
 	}
 	if err := ctrl.IngressBuilder.Create(routes); err != nil {
-		logger.Error(err, "unable to create ingress")
+		utils.Logger.Error(err, "unable to create ingress")
 	}
 	if err := ctrl.CertBuilder.Create(routes); err != nil {
-		logger.Error(err, "unable to create certificats")
+		utils.Logger.Error(err, "unable to create certificats")
 	}
 }
 
@@ -111,7 +110,6 @@ func StartController(router *router.Router) {
 		LeaderElection:   false,
 		LeaderElectionID: "90da48b4.warptail.exceptionerror.io",
 	})
-	ctrl.SetLogger(router.GetLogger())
 
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

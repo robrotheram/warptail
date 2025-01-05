@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"warptail/pkg/router"
+	"warptail/pkg/utils"
 
 	"github.com/gosimple/slug"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -58,7 +59,7 @@ func (r *WarpTailServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *WarpTailServiceReconciler) UpdateService(ctx context.Context, svc WarpTailService) *router.RouterError {
+func (r *WarpTailServiceReconciler) UpdateService(ctx context.Context, svc WarpTailService) *utils.RouterError {
 	logger := log.FromContext(ctx)
 	defer r.Router.Save()
 	id := slug.Make(svc.Name)
@@ -73,7 +74,7 @@ func (r *WarpTailServiceReconciler) UpdateService(ctx context.Context, svc WarpT
 	return err
 }
 
-func (r *WarpTailServiceReconciler) RemoveService(ctx context.Context, svc WarpTailService) *router.RouterError {
+func (r *WarpTailServiceReconciler) RemoveService(ctx context.Context, svc WarpTailService) *utils.RouterError {
 	logger := log.FromContext(ctx)
 	defer r.Router.Save()
 	logger.Info("Removing", "service", svc.Name)

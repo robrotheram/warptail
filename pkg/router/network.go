@@ -9,7 +9,6 @@ import (
 	"time"
 	"warptail/pkg/utils"
 
-	"github.com/go-logr/logr"
 	"tailscale.com/client/tailscale"
 )
 
@@ -24,7 +23,6 @@ type NetworkRoute struct {
 
 	latency  time.Duration
 	heatbeat time.Ticker
-	logger   logr.Logger
 }
 
 func NewNetworkRoute(config utils.RouteConfig, client *tailscale.LocalClient) *NetworkRoute {
@@ -33,7 +31,6 @@ func NewNetworkRoute(config utils.RouteConfig, client *tailscale.LocalClient) *N
 		data:   utils.NewTimeSeries(time.Second, 1000),
 		status: STOPPED,
 		client: client,
-		logger: utils.Logger,
 	}
 }
 
@@ -62,7 +59,7 @@ func (route *NetworkRoute) Stop() error {
 	route.status = STOPPING
 	close(route.quit)
 	<-route.exited
-	route.logger.Info("Stopped successfully")
+	utils.Logger.Info("Stopped successfully")
 	route.status = STOPPED
 	return nil
 }
@@ -95,19 +92,19 @@ func (route *NetworkRoute) serve() {
 	for {
 		select {
 		case <-route.quit:
-			route.logger.Info("Shutting down...")
+			utils.Logger.Info("Shutting down...")
 			route.listener.Close()
 			handlers.Wait()
 			close(route.exited)
 			return
 		default:
-			route.listener.SetDeadline(time.Now().Add(1e9))
+			route.listener.SetDeadline(time.Now().Add(10 * time.Second))
 			conn, err := route.listener.Accept()
 			if err != nil {
 				if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 					continue
 				}
-				route.logger.Error(err, "failed to accept connection")
+				utils.Logger.Error(err, "failed to accept connection")
 			}
 			handlers.Add(1)
 			go func() {
@@ -121,7 +118,7 @@ func (route *NetworkRoute) serve() {
 func (route *NetworkRoute) handleConnection(conn net.Conn) {
 	proxy, err := route.client.UserDial(context.Background(), string(route.config.Type), route.config.Machine.Address, route.config.Machine.Port)
 	if err != nil {
-		route.logger.Error(err, "remote connection failed")
+		utils.Logger.Error(err, "remote connection failed")
 		return
 	}
 
