@@ -19,10 +19,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const checkToken = () => {
-      console.log("token")
-      if (!token) {
-        navigate({ to: '/login' })
-      } else {
+      if (token) {
         const decodedToken = parseJwt(token);
         if (decodedToken.exp * 1000 < Date.now()) {
           logout();
@@ -43,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = useCallback(() => {
     sessionStorage.removeItem('token');
     setToken(null);
+    navigate({ to: '/login' })
   }, []);
 
   const isAuthenticated = !!token;

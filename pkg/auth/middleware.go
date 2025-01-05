@@ -39,16 +39,18 @@ func NewAuthentication(mux *chi.Mux, db *bun.DB, config utils.AuthenticationConf
 
 	auth.sessionStore = sessions.NewCookieStore([]byte(config.Secret))
 	auth.sessionStore.Options = &sessions.Options{
-		Path:     "/",   // Available to all paths
-		MaxAge:   60,    // 1 hour
-		HttpOnly: true,  // Prevent JavaScript access
-		Secure:   false, // Use 'false' for HTTP, 'true' for HTTPS
+		Path:     "/",
+		MaxAge:   0,
+		HttpOnly: true,
+		Secure:   false,
 	}
 	auth.users = NewUserStore(db)
 
 	if provider, err := NewOpenIdProvider(providerConfig, auth.sessionStore, auth.users); err == nil {
 		auth.OICDProvider = provider
 		mux.HandleFunc("/auth/callback", auth.OICDProvider.Callback)
+	} else {
+		utils.Logger.Error(err, "unable to create oidc")
 	}
 
 	if provider, err := NewJWTAuthProvider(providerConfig, auth.sessionStore, auth.users); err == nil {
