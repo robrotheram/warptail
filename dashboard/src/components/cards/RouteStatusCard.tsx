@@ -40,7 +40,7 @@ export const RouteStatusCard = ({ route }: RouteCardProps) => {
           {(route.type === RouterType.TCP || route.type === RouterType.UDP) &&
             <>Listening: {route.port}</>
           }
-          {(route.type === RouterType.HTTP) &&
+          {(route.type === RouterType.HTTP || route.type === RouterType.HTTPS) &&
             <a href={`http://${route.domain}`}>http://{route.domain}</a>
           }
         </div>

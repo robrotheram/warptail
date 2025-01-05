@@ -145,7 +145,7 @@ func GenerateToken(identifier, authType, secretKey string) string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"identifier": identifier,
 		"type":       authType,
-		"exp":        time.Now().Add(time.Second * 72).Unix(),
+		"exp":        time.Now().Add(time.Hour * 6).Unix(),
 	})
 	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {

@@ -39,6 +39,8 @@ func NewRoute(config utils.RouteConfig, ts *tsnet.Server) (Route, error) {
 		return NewNetworkRoute(config, client), nil
 	case utils.HTTP:
 		return NewHTTPRoute(config, ts), nil
+	case utils.HTTPS:
+		return NewHTTPRoute(config, ts), nil
 	default:
 		return nil, fmt.Errorf("no handler for type %s", config.Type)
 	}

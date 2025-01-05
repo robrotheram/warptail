@@ -8,6 +8,7 @@ export enum RouterStatus {
 }
 
 export enum RouterType {
+    HTTPS = "https",
     HTTP = "http",
     TCP = "tcp",
     UDP = "udp",

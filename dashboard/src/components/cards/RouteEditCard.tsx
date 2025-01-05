@@ -58,6 +58,7 @@ export const RouteEditCard = ({ route, updateRoute, removeRoute }: RouteEditProp
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={RouterType.HTTP}>{RouterType.HTTP}</SelectItem>
+                <SelectItem value={RouterType.HTTPS}>{RouterType.HTTPS}</SelectItem>
                 <SelectItem value={RouterType.TCP}>{RouterType.TCP}</SelectItem>
                 <SelectItem value={RouterType.UDP}>{RouterType.UDP}</SelectItem>
               </SelectContent>
@@ -75,7 +76,7 @@ export const RouteEditCard = ({ route, updateRoute, removeRoute }: RouteEditProp
               />
             </div>
           )}
-          {(route.type === RouterType.HTTP) && (
+          {(route.type === RouterType.HTTP || route.type === RouterType.HTTPS) && (
 
             <div className='col-span-5 flex flex-col md:flex-row gap-4'>
               <div className='flex flex-col py-1.5 h-full justify-end'>
