@@ -17,3 +17,7 @@ func (api *api) handleUpdateTailscaleSettings(w http.ResponseWriter, r *http.Req
 	api.SaveTailScale(tsc)
 	utils.WriteStatus(w, http.StatusOK)
 }
+
+func (api *api) handleUpdateTailscaleSatus(w http.ResponseWriter, r *http.Request) {
+	utils.WriteData(w, api.GetTailScaleStatus())
+}

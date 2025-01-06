@@ -54,30 +54,19 @@ export const CreateServiceModel = () => {
 
 export const RouteList = () => {
     const navigate = useNavigate({ from: '/' })
-    const {read_only:canEdit} = useConfig()
-    const { isPending, error, data, isLoading } = useQuery({
+    const {read_only} = useConfig()
+    const { data } = useQuery({
       queryKey: ['repoData'],
       queryFn: getServices,
     })
-  
-    if (isPending || isLoading) {
-      return "LOADING"
-    } else if (error) {
-      console.log(error)
-      return JSON.stringify(error)
-    }
-  
-    data.sort((a, b) => {
-      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-    });
-  
+    
     return <Card>
         <CardHeader className='flex flex-row justify-between'>
           <div className='space-y-1.5 flex flex-col'>
             <CardTitle>Services</CardTitle>
             <CardDescription>Manage your load balancer routes.</CardDescription>
           </div>
-          {canEdit &&<CreateServiceModel />}
+          {!read_only &&<CreateServiceModel />}
         </CardHeader>
         <CardContent>
           <Table>
@@ -88,9 +77,12 @@ export const RouteList = () => {
                 <TableHead>Enabled</TableHead>
               </TableRow>
             </TableHeader>
+            {data &&
             <TableBody>
               {
-                data.map(svc => {
+                data.sort((a, b) => {
+                  return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+                }).map(svc => {
                   return <TableRow onClick={() => navigate({ to: `/routes/${svc.id}` })} className='cursor-pointer' key={svc.id}>
                     <TableCell className="font-medium">{svc.name}</TableCell>
                     <TableCell>
@@ -99,10 +91,10 @@ export const RouteList = () => {
                     <TableCell>
                       <Badge variant={`${svc.enabled ? "success" : "destructive"}`}>{`${svc.enabled ? "Active" : "Inactive"}`}</Badge>
                     </TableCell>
-  
                   </TableRow>
                 })}
             </TableBody>
+}
           </Table>
         </CardContent>
       </Card>

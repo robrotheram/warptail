@@ -25,7 +25,7 @@ func NewUI(config utils.Config) SPAHandler {
 		Config: UIConfig{
 			AuthenticationType: config.Application.Authentication.Provider.Type,
 			AuthenticationName: config.Application.Authentication.Provider.Name,
-			ReadOnly:           utils.IsEmptyStruct(config.Kubernetes),
+			ReadOnly:           !utils.IsEmptyStruct(config.Kubernetes),
 		},
 	}
 	return spa

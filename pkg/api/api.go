@@ -57,6 +57,7 @@ func NewApi(router *router.Router, config utils.Config) *chi.Mux {
 		r.Route("/api/settings", func(r chi.Router) {
 			r.Get("/tailscale", api.handleTailscaleSettings)
 			r.Post("/tailscale", api.handleUpdateTailscaleSettings)
+			r.Get("/tailscale/status", api.handleUpdateTailscaleSatus)
 		})
 		r.Route("/api/services", func(r chi.Router) {
 			r.Get("/", api.handleGetRoutes)

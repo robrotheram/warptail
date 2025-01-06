@@ -19,6 +19,20 @@ export enum Role {
     USER = "user",
 }
 
+export enum TS_STATE {
+    NOSTATE = "NoState",
+    NEEDS_LOGIN = "NeedsLogin",
+    NEEDS_MACHINE_AUTH = "NeedsMachineAuth",
+    STOPPED = "Stopped",
+    STARTING = "Starting",
+    RUNNING = "Running"
+}
+
+export interface TS_STATUS {
+    messages: string[]
+    version: string
+    state: TS_STATE
+}
 
 export interface Config {
     read_only: boolean
@@ -43,7 +57,7 @@ export interface Service {
 }
 
 export interface Route {
-    key? : number
+    key?: number
     private: boolean
     type: string
     domain?: string
@@ -197,6 +211,13 @@ export const stopService = async (name: string): Promise<Service> => {
 // GET TAILSALE CONFIGURATION
 export const getTSConfig = async (): Promise<Tailsale> => {
     const response = await axios.get(`${API_URL}/settings/tailscale`, {
+        headers: getAuth(),
+    });
+    return response.data;
+}
+
+export const getTSSTATUS = async (): Promise<TS_STATUS> => {
+    const response = await axios.get(`${API_URL}/settings/tailscale/status`, {
         headers: getAuth(),
     });
     return response.data;

@@ -22,7 +22,7 @@ type NetworkRoute struct {
 	exited   chan bool
 
 	latency  time.Duration
-	heatbeat time.Ticker
+	heatbeat *time.Ticker
 }
 
 func NewNetworkRoute(config utils.RouteConfig, client *tailscale.LocalClient) *NetworkRoute {
@@ -106,6 +106,7 @@ func (route *NetworkRoute) serve() {
 				}
 				utils.Logger.Error(err, "failed to accept connection")
 			}
+			defer conn.Close()
 			handlers.Add(1)
 			go func() {
 				route.handleConnection(conn)
@@ -161,7 +162,7 @@ func (route *NetworkRoute) copy(from, to io.ReadWriter, wg *sync.WaitGroup) {
 }
 
 func (route *NetworkRoute) heartbeat(timeout time.Duration) {
-	route.heatbeat = *time.NewTicker(timeout)
+	route.heatbeat = time.NewTicker(timeout)
 	go func() {
 		for range route.heatbeat.C {
 			if route.status != RUNNING {

@@ -3,36 +3,43 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useConfig } from '@/context/ConfigContext'
-import { getTSConfig, Tailsale, updateTSConfig } from '@/lib/api'
+import { getTSConfig, getTSSTATUS, Tailsale, TS_STATE, updateTSConfig } from '@/lib/api'
 import ProtectedRoute from '@/Protected'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLazyFileRoute } from '@tanstack/react-router'
-import { Save, Edit } from 'lucide-react'
+import { Save, Edit, Activity, Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion"
+import { ScrollArea } from '@/components/ui/scroll-area'
+
 
 type TailScaleFormProps = {
     config: Tailsale
 }
 const TailScaleForm = ({ config }: TailScaleFormProps) => {
     const [editMode, setEditMode] = useState(false)
-    const {read_only:canEdit} = useConfig()
+    const { read_only } = useConfig()
     const [editedRoute, setEditedRoute] = useState<Tailsale>(config)
     const queryClient = useQueryClient()
     const update = useMutation({
         mutationFn: updateTSConfig,
-        onSuccess: (data) => {
-            console.log(data)
-            queryClient.setQueryData(['settings', 'tailscale'], data)
+        onSuccess: () => {
+            queryClient.invalidateQueries()
+            setEditMode(false)
         },
     })
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target
-        console.log("TARGET", name, value)
-        setEditedRoute((prevRoute) => ({
-            ...prevRoute,
+        setEditedRoute({
+            ...editedRoute,
             [name]: value,
-        }))
+        })
     }
 
     const handleEdit = () => {
@@ -42,7 +49,7 @@ const TailScaleForm = ({ config }: TailScaleFormProps) => {
 
     const handleSave = () => {
         update.mutate(editedRoute)
-        setEditMode(false)
+
     }
     return <>
         <CardContent>
@@ -52,7 +59,7 @@ const TailScaleForm = ({ config }: TailScaleFormProps) => {
                     <Input
                         id="AuthKey"
                         name="AuthKey"
-                        type="password"
+                        type="text"
                         value={editMode ? editedRoute.AuthKey : config.AuthKey}
                         onChange={handleInputChange}
                         disabled={!editMode}
@@ -76,11 +83,13 @@ const TailScaleForm = ({ config }: TailScaleFormProps) => {
         >
             {editMode && (
                 <Button onClick={handleSave} className="w-24">
-                    <Save className="mr-2 h-4 w-4" />
+                    {!update.isPending ? <Save className="mr-2 h-4 w-4" /> : <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
                     Save
+
+
                 </Button>
             )}
-            {!editMode && canEdit && (
+            {!editMode && !read_only && (
                 <Button onClick={handleEdit} className="w-24">
                     <Edit className="mr-2 h-4 w-4" />
                     Edit
@@ -89,6 +98,42 @@ const TailScaleForm = ({ config }: TailScaleFormProps) => {
         </CardFooter>
     </>
 }
+
+const TailScaleStatusComponent = () => {
+    const { data } = useQuery({
+        queryKey: ['settings', 'tailscale', "status"],
+        queryFn: getTSSTATUS,
+    })
+    if (!data) {
+        return null
+    } 
+    return <CardHeader className='w-[33%] space-y-3'>
+        <CardTitle className='text-xl'>Version: {data.version}</CardTitle>
+        <div className='flex gap-2 items-center'>
+            <Activity className={`h-5 w-5 ${data.state === TS_STATE.RUNNING ? 'text-green-500' : 'text-red-500'}`} />
+            <p className='text-xl'>{data.state}</p>
+        </div>
+        {data.messages && data.state !== TS_STATE.RUNNING && <Accordion type="single" collapsible>
+            <AccordionItem value="item-1">
+                <AccordionTrigger>Tailscale Log</AccordionTrigger>
+                <AccordionContent>
+                    <ScrollArea className="max-h-44 h-44 border p-3 ">
+                        {data.messages.map((log, index) => (
+                            <div
+                                key={index}
+                                className="mb-2 p-2 border"
+                            >
+                                <p className="text-sm">{log}</p>
+                            </div>
+                        ))}
+                    </ScrollArea>
+                </AccordionContent>
+            </AccordionItem>
+        </Accordion>}
+    </CardHeader>
+
+}
+
 
 const SettingComponent = () => {
     const { isPending, error, data, isLoading } = useQuery({
@@ -104,15 +149,14 @@ const SettingComponent = () => {
     }
 
     return <div className='flex flex-col space-y-6'>
-        <div>
-            <h1 className='text-3xl'>Settings</h1>
-            <h2 className='text-xl'>Manage connection</h2>
-        </div>
         <Card>
-            <CardHeader>
-                <CardTitle>Tailscale</CardTitle>
-                <CardDescription>Manage the connection</CardDescription>
-            </CardHeader>
+            <div className='flex justify-between'>
+                <CardHeader>
+                    <CardTitle className='text-3xl'>Tailscale</CardTitle>
+                    <CardDescription className='text-2xl'>Manage the connection</CardDescription>
+                </CardHeader>
+                <TailScaleStatusComponent />
+            </div>
             <TailScaleForm config={data} />
         </Card>
     </div>

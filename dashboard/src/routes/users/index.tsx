@@ -254,7 +254,7 @@ const UserActions = ({ user }: UserActionsProps) => {
 }
 
 const UserComponent = () => {
-  const { read_only: canEdit } = useConfig()
+  const { read_only } = useConfig()
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const { isPending, error, data, isLoading } = useQuery({
     queryKey: ['userList'],
@@ -274,7 +274,7 @@ const UserComponent = () => {
         <CardTitle>Users</CardTitle>
         <CardDescription>Manage access to your applications</CardDescription>
       </div>
-      {canEdit && <UserModel mode={"create"} open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen} />}
+      {!read_only && <UserModel mode={"create"} open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen} />}
     </CardHeader>
     <CardContent>
       <Table>
@@ -291,7 +291,7 @@ const UserComponent = () => {
               <TableCell className="font-medium">{svc.name}</TableCell>
               <TableCell className="font-medium">{svc.email}</TableCell>
               <TableCell className="font-medium">{svc.role}</TableCell>
-              <TableCell className=""><UserActions user={svc} /></TableCell>
+              {!read_only&&<TableCell className=""><UserActions user={svc} /></TableCell>}
             </TableRow>
           })}
         </TableBody>

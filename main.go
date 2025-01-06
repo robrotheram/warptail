@@ -25,7 +25,13 @@ func init() {
 
 func main() {
 	router := router.NewRouter()
-	router.Init(config)
+	err := router.Init(config)
+	if err != nil {
+		utils.Logger.Error(err, "unable to create router")
+		return
+	}
+	router.GetTailScaleStatus()
+
 	if utils.IsEmptyStruct(config.Kubernetes) {
 		utils.Logger.Info("Starting Server")
 		StartRouter(config, router)

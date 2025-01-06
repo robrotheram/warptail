@@ -35,7 +35,7 @@ type ServiceCardProps = {
 }
 export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
   const navigate = useNavigate()
-  const { read_only: canEdit } = useConfig()
+  const { read_only } = useConfig()
 
   const queryClient = useQueryClient()
   const { isPending, isError, data, isLoading } = useQuery({
@@ -159,24 +159,24 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
               }
             </Button>
             }
-            {edit && canEdit && (
+            {edit && !read_only && (
               <Button onClick={() => navigate({ to: `/routes/${data.id}` })} variant="secondary" className="w-full">
                 Cancel
               </Button>
             )}
-            {edit && canEdit && (
+            {edit && !read_only && (
               <Button onClick={handleDelete} variant="destructive" className="w-full">
                 <Trash className="mr-2 h-4 w-4" />
                 Delete
               </Button>
             )}
-            {edit && canEdit && (
+            {edit && !read_only && (
               <Button onClick={handleSave} className="w-full">
                 <Save className="mr-2 h-4 w-4" />
                 Save
               </Button>
             )}
-            {!edit && canEdit && (
+            {!edit && !read_only && (
               <Button onClick={() => navigate({ to: `/routes/${data.id}/edit` })} className="w-full">
                 <Edit className="mr-2 h-4 w-4" />
                 Edit

@@ -31,7 +31,10 @@ func NewRouter() *Router {
 }
 
 func (r *Router) Init(config utils.Config) error {
-	r.UpdateTailscale(config.Tailscale)
+	err := r.UpdateTailscale(config.Tailscale)
+	if err != nil {
+		return err
+	}
 	for _, service := range config.Services {
 		if _, err := r.Create(service); err != nil {
 			return err
@@ -42,7 +45,6 @@ func (r *Router) Init(config utils.Config) error {
 
 func (r *Router) Reload(config utils.Config) {
 	r.UpdateTailscale(config.Tailscale)
-
 	for _, svc := range config.Services {
 		if r.DoesExists(svc.Name) {
 			id := slug.Make(svc.Name)
