@@ -107,6 +107,7 @@ export interface Login {
 export interface User {
     id?: string
     name: string
+    type: string
     password?: string
     email: string
     role?: Role
@@ -131,7 +132,7 @@ if (isDev) {
 export const API_URL = `${BASE_URL}/api`
 export const AUTH_URL = `${BASE_URL}/auth`
 
-const getAuth = (tkn?: string) => {
+const getAuth = (tkn?: string | null) => {
     return {
         Authorization: token.get() ?? tkn
     } as Record<string, string>
@@ -263,7 +264,7 @@ export const deleteUser = async (user: User): Promise<User> => {
 }
 
 
-export const getProfile = async (token?: string): Promise<User> => {
+export const getProfile = async (token?: string | null): Promise<User> => {
     const response = await axios.get(`${AUTH_URL}/profile`, {
         headers: getAuth(token),
     });

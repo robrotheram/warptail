@@ -2,130 +2,20 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import { Progress } from '@/components/ui/progress'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TableHeader, TableRow, TableHead, TableBody, TableCell, Table } from '@/components/ui/table'
-import { calculateStrength, getStrengthColor, getStrengthLabel } from '@/components/utils/PasswordStrengthMeter'
 import { useConfig } from '@/context/ConfigContext'
 import { MenuIcon } from '@/Icons'
-import { createUser, deleteUser, getUsers, Role, User, updateUser } from '@/lib/api'
+import { createUser, deleteUser, getUsers, User, updateUser } from '@/lib/api'
 import ProtectedRoute from '@/Protected'
-import { Label } from '@radix-ui/react-label'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { AlertCircle, PencilIcon, Plus, TrashIcon } from 'lucide-react'
+import { PencilIcon, Plus, TrashIcon } from 'lucide-react'
 import { useState } from 'react'
-import { Formik, Form, Field, ErrorMessage, useFormikContext } from 'formik';
-import * as yup from 'yup';
+
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { UserEditForm } from '@/components/forms/UserForm'
 
 
-const ErrorWithIcon = ({ name }: { name: string }) => (
-  <ErrorMessage name={name}>
-    {(message) => (
-      <div className="flex items-center text-red-500 text-sm mt-1">
-        <AlertCircle className="w-4 h-4 mr-1" />
-        {message}
-      </div>
-    )}
-  </ErrorMessage>
-);
-
-const RoleField = () => {
-  const { setFieldValue, values } = useFormikContext<{ role: string }>();
-  return (
-    <div className='flex flex-col gap-1'>
-      <Label htmlFor="role">Role</Label>
-      <Select
-        onValueChange={(value) => setFieldValue('role', value)}
-        value={values.role}
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select a role" />
-        </SelectTrigger>
-        <SelectContent>
-          {Object.values(Role).map((role) => (
-            <SelectItem key={role} value={role}>
-              {role}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <ErrorWithIcon name="role" />
-    </div>
-  );
-};
-
-const PasswordField = () => {
-  const { setFieldValue, values } = useFormikContext<{ password: string }>();
-  return (
-    <div className='flex flex-col gap-1'>
-      <Label htmlFor="role">Password</Label>
-      <Input
-        value={values.password}
-        onChange={(e) => { setFieldValue("password", e.target.value, true) }}
-        type="password"
-        id="password"
-        placeholder="Enter your password"
-      />
-      {values.password &&
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Strength:</span>
-            <span className="font-medium">{getStrengthLabel(calculateStrength(values.password))}</span>
-          </div>
-          <Progress value={calculateStrength(values.password)} className={getStrengthColor(calculateStrength(values.password))} />
-        </div>
-      }
-
-      <ErrorWithIcon name="password" />
-    </div>
-  );
-};
-
-const CreateUserValidationSchema = yup.object({
-  name: yup.string()
-    .required('name is required')
-    .min(3, 'name must be at least 3 characters long')
-    .max(200, 'name must be at most 200 characters long'),
-  password: yup.string()
-    .required("Passsword is required") // password is optional
-    .min(8, 'Password must be at least 8 characters long')
-    .max(50, 'Password must be at most 50 characters long')
-    .matches(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .matches(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .matches(/[0-9]/, 'Password must contain at least one number')
-    .matches(/[@$!%*?&#]/, 'Password must contain at least one special character (@, $, !, %, *, ?, &, #)'),
-  email: yup.string()
-    .required('Email is required')
-    .email('Invalid email format'),
-  role: yup.mixed<Role>()
-    .required('Role is required')
-    .oneOf(Object.values(Role), `Role must be one of: ${Object.values(Role).join(', ')}`),
-});
-
-
-const EditUserValidationSchema = yup.object({
-  name: yup.string()
-    .required('name is required')
-    .min(3, 'name must be at least 3 characters long')
-    .max(200, 'name must be at most 200 characters long'),
-  password: yup.string()
-    .optional()
-    .min(8, 'Password must be at least 8 characters long')
-    .max(50, 'Password must be at most 50 characters long')
-    .matches(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .matches(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .matches(/[0-9]/, 'Password must contain at least one number')
-    .matches(/[@$!%*?&#]/, 'Password must contain at least one special character (@, $, !, %, *, ?, &, #)'),
-  email: yup.string()
-    .required('Email is required')
-    .email('Invalid email format'),
-  role: yup.mixed<Role>()
-    .required('Role is required')
-    .oneOf(Object.values(Role), `Role must be one of: ${Object.values(Role).join(', ')}`),
-});
 
 
 
@@ -148,7 +38,7 @@ export const UserModel = ({ mode, user, open, onOpenChange }: UserModelProps) =>
     },
   });
 
-  const defaultUser: User = { name: '', email: '', password: '' };
+  const defaultUser: User = { name: '', email: '', password: '', type: "" };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,44 +47,14 @@ export const UserModel = ({ mode, user, open, onOpenChange }: UserModelProps) =>
       </DialogTrigger>}
       <DialogContent className="sm:max-w-[800px]">
         <DialogHeader>
-          <DialogTitle>{mode === 'create' ? 'Create User' : `Edit User ${user?.id}`}</DialogTitle>
+          <DialogTitle>{mode === 'create' ? 'Create User' : `Edit User ${user?.name}`}</DialogTitle>
         </DialogHeader>
-        <Formik
-          initialValues={ mode === 'create' ? defaultUser : user!}
-          validationSchema={mode === "create" ? CreateUserValidationSchema : EditUserValidationSchema}
+        <UserEditForm
+          mode={mode}
+          user={mode === 'create' ? defaultUser : user!}
           onSubmit={mutation.mutate}
-        >
-          <Form className="flex flex-col space-y-4">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="username">Name:</label>
-              <Field name="name">
-                {({ field }: { field: any }) => (
-                  <Input {...field} id="name" placeholder="Enter your name" />
-                )}
-              </Field>
-              <ErrorWithIcon name="username" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="email">Email</Label>
-              <Field name="email">
-                {({ field }: { field: any }) => (
-                  <Input {...field} type="email" id="email" placeholder="Enter your email" />
-                )}
-              </Field>
-              <ErrorWithIcon name="email" />
-            </div>
-            <PasswordField />
-            <RoleField />
-            <div className="flex gap-2 justify-end">
-              <Button className="w-full" type="submit">
-                {mode === 'create' ? 'Create' : 'Edit'}
-              </Button>
-              <Button className="w-full" variant={'secondary'} onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-            </div>
-          </Form>
-        </Formik>
+          onCancel={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -283,15 +143,19 @@ const UserComponent = () => {
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Type</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map(svc => {
+          {data.sort((a, b) => {
+            return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+          }).map(svc => {
             return <TableRow key={svc.id}>
               <TableCell className="font-medium">{svc.name}</TableCell>
               <TableCell className="font-medium">{svc.email}</TableCell>
               <TableCell className="font-medium">{svc.role}</TableCell>
-              {!read_only&&<TableCell className=""><UserActions user={svc} /></TableCell>}
+              <TableCell className="font-medium">{svc.type}</TableCell>
+              {!read_only && <TableCell className=""><UserActions user={svc} /></TableCell>}
             </TableRow>
           })}
         </TableBody>

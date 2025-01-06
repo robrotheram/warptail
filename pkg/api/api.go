@@ -51,25 +51,27 @@ func NewApi(router *router.Router, config utils.Config) *chi.Mux {
 	//Handle Metrics
 	mux.Handle("/metrics", promhttp.Handler())
 	go api.startMetrics()
-
 	mux.Group(func(r chi.Router) {
 		r.Use(api.authentication.DashboardMiddleware)
+		r.Get("/api/services", api.handleGetRoutes)
+		r.Get("/api/services/{id}", api.handleGetRoute)
+
+	})
+	mux.Group(func(r chi.Router) {
+		r.Use(api.authentication.DashboardAdminMiddleware)
 		r.Route("/api/settings", func(r chi.Router) {
 			r.Get("/tailscale", api.handleTailscaleSettings)
 			r.Post("/tailscale", api.handleUpdateTailscaleSettings)
 			r.Get("/tailscale/status", api.handleUpdateTailscaleSatus)
 		})
-		r.Route("/api/services", func(r chi.Router) {
-			r.Get("/", api.handleGetRoutes)
-			r.Post("/", api.handleCreateRoute)
-		})
-		r.Route("/api/services/{id}", func(r chi.Router) {
-			r.Get("/", api.handleGetRoute)
-			r.Put("/", api.handleUpdateRoute)
-			r.Delete("/", api.handleDeleteRoute)
-			r.Post("/stop", api.handleStopRoute)
-			r.Post("/start", api.handleStartRoute)
-		})
+
+		r.Post("/api/services", api.handleCreateRoute)
+
+		r.Put("/api/services/{id}", api.handleUpdateRoute)
+		r.Delete("/api/services/{id}", api.handleDeleteRoute)
+		r.Post("/api/services/{id}/stop", api.handleStopRoute)
+		r.Post("/api/services/{id}/start", api.handleStartRoute)
+
 		r.Route("/api/user", func(r chi.Router) {
 			r.Get("/", api.authentication.HandleListUsers)
 			r.Put("/", api.authentication.HandleCreateUsers)

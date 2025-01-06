@@ -41,14 +41,10 @@ export const LoginPage: React.FC = () => {
 
   const profile = useMutation({
     mutationFn: getProfile,
-    onSuccess: (data) => {
+    onSuccess: () => {
       if (token) {
-        if (data.role === Role.ADMIN) {
           login(token)
           navigate({ to: '/' })
-        } else {
-          setAlert("Permission Denied")
-        }
       }
     },
     onError: () => {

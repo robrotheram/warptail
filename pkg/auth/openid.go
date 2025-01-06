@@ -175,6 +175,7 @@ func (auth *OpenIDAuth) createUser(ctx context.Context, oauth2Token *oauth2.Toke
 		ID:    uuid.New(),
 		Name:  profile["name"].(string),
 		Email: profile["email"].(string),
+		Type:  "openid",
 		Role:  ADMIN,
 	}
 

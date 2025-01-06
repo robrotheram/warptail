@@ -15,7 +15,7 @@ import {
   Save,
   PlusIcon,
 } from 'lucide-react'
-import { deleteService, getService, Route as RouteInterface, Service, startService, stopService, updateService } from '../../lib/api'
+import { deleteService, getService, Role, Route as RouteInterface, Service, startService, stopService, updateService } from '../../lib/api'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useEffect, useState } from 'react'
@@ -26,6 +26,7 @@ import { RouterChart } from './ChartCard'
 import { ErrorCard } from './ErrorCard'
 import { useConfig } from '@/context/ConfigContext'
 import { Label } from '../ui/label'
+import { useAuth } from '@/context/AuthContext'
 
 
 
@@ -36,6 +37,7 @@ type ServiceCardProps = {
 export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
   const navigate = useNavigate()
   const { read_only } = useConfig()
+   const {user} = useAuth()
 
   const queryClient = useQueryClient()
   const { isPending, isError, data, isLoading } = useQuery({
@@ -134,7 +136,7 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
 
   return (
     <div className="container mx-auto p-2 space-y-6">
-      <div className="grid grid-cols-1 gap-0 space-y-6 md:grid-cols-3  md:gap-6  md:space-y-0">
+      <div className={`grid grid-cols-1 gap-0 space-y-6 md:gap-6 md:space-y-0 ${user?.role === Role.ADMIN && "md:grid-cols-3 "}`}>
         <Card className="col-span-2 flex flex-col justify-between">
           <CardContent>
             <CardHeader className='flex flex-col px-0 space-y-4'>
@@ -147,6 +149,7 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
             </CardHeader>
           </CardContent>
         </Card>
+        {user?.role === Role.ADMIN &&
         <Card>
           <CardHeader className='py-4'>
             <CardTitle className="text-lg">Actions</CardTitle>
@@ -183,7 +186,7 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
               </Button>
             )}
           </CardContent>
-        </Card>
+        </Card>}
       </div>
       <Card>
         <CardHeader className='flex flex-row justify-between gap-8 items-center '>

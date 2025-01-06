@@ -1,9 +1,12 @@
+import { getProfile, User } from '@/lib/api';
 import { LoginPage } from '@/LoginPage';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import React, { createContext, useState, useContext, useMemo, useCallback, useEffect } from 'react';
 
 interface AuthContextType {
   token: string | null;
+  user?: User;
   isAuthenticated: boolean;
   login: (newToken: string) => void;
   logout: () => void;
@@ -16,6 +19,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(() =>
     sessionStorage.getItem('token')
   );
+  const { data: user } = useQuery({
+    queryKey: ['profile'],
+    queryFn: () => getProfile(token),
+  })
+
 
   useEffect(() => {
     const checkToken = () => {
@@ -35,29 +43,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback((newToken: string) => {
     sessionStorage.setItem('token', newToken);
     setToken(newToken);
+
   }, []);
 
   const logout = useCallback(() => {
     sessionStorage.removeItem('token');
     setToken(null);
+
     navigate({ to: '/login' })
   }, []);
 
-  const isAuthenticated = !!token;
+  const isAuthenticated = !!user;
 
   const value = useMemo(
     () => ({
       token,
+      user,
       isAuthenticated,
       login,
       logout,
     }),
-    [token, isAuthenticated, login, logout]
+    [token, user, isAuthenticated, login, logout]
   );
 
   return (
     <AuthContext.Provider value={value}>
-      {isAuthenticated ? children :  <LoginPage />}
+      {isAuthenticated ? children : <LoginPage />}
     </AuthContext.Provider>
   );
 };

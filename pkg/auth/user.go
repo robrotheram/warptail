@@ -33,6 +33,7 @@ type User struct {
 	Name          string    `bun:",notnull" json:"name"`
 	Email         string    `bun:",notnull" json:"email"`
 	Password      string    `bun:",notnull" json:"password,omitempty"`
+	Type          string    `bun:",notnull" json:"type"`
 	Role          Role      `bun:",notnull" json:"role"`
 	CreatedAt     time.Time `bun:",default:current_timestamp" json:"created_at"`
 	bun.BaseModel `bun:"table:users,alias:u"`
@@ -40,7 +41,8 @@ type User struct {
 
 func NewUser() User {
 	return User{
-		ID: uuid.New(),
+		ID:   uuid.New(),
+		Type: "internal",
 	}
 }
 
@@ -58,6 +60,7 @@ func (user *User) Sanatize() User {
 		ID:        user.ID,
 		Name:      user.Name,
 		Email:     user.Email,
+		Type:      user.Type,
 		Role:      user.Role,
 		CreatedAt: user.CreatedAt,
 	}

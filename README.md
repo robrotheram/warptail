@@ -202,6 +202,32 @@ The Kubernetes section is optional and used for deployments within a Kubernetes 
 **Note:**
 - If `kubernetes` is configured, ACME configuration will be disabled automatically.
 
+
+Here's a draft section for your README file:  
+
+---
+
+## Authentication Details
+
+### Default Login (Admin)
+When the proxy service starts, a default admin account is created for initial setup:  
+- **Username:** `admin@warptail.local`  
+- **Password:** Auto-generated and displayed in the console logs during the initial startup.  
+
+> **Note:** Make sure to check the console output to retrieve the generated password. For security purposes, it is highly recommended to log in and change this password immediately after the first login.
+
+### OpenID Authentication
+If you are using OpenID for authentication, the default role assigned to authenticated users is `user`.  
+
+To modify user roles:  
+1. Log in to the portal using the admin account (`admin@warptail.local`).  
+2. Navigate to the user management section.  
+3. Update the roles as necessary.  
+
+This setup ensures flexibility in managing access levels while maintaining a secure default configuration.  
+
+
+
 ## Running WarpTail on Docker
 
 When running WarpTail in Docker, you'll need to mount the `config.yaml` to the container and decide between specifying all proxy ports upfront or using host networking for dynamic routing.

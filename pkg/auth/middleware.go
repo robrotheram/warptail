@@ -126,7 +126,7 @@ func (auth *Authentication) GetUser(w http.ResponseWriter, r *http.Request) (Use
 	return user, fmt.Errorf("no authentication providers found")
 }
 
-func (auth *Authentication) DashboardMiddleware(next http.Handler) http.Handler {
+func (auth *Authentication) DashboardAdminMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, err := auth.GetUser(w, r)
 		if err != nil {
@@ -135,6 +135,17 @@ func (auth *Authentication) DashboardMiddleware(next http.Handler) http.Handler 
 		}
 		if user.Role != ADMIN {
 			http.Error(w, "Authentication failed. Permission Denied.", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (auth *Authentication) DashboardMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := auth.GetUser(w, r)
+		if err != nil {
+			http.Error(w, "Authentication failed. Invalid token.", http.StatusUnauthorized)
 			return
 		}
 		next.ServeHTTP(w, r)

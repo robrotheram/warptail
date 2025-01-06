@@ -10,8 +10,6 @@ import { Input } from '../ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
-import { useConfig } from '@/context/ConfigContext'
-
 
 export const CreateServiceModel = () => {
   const navigate = useNavigate({ from: `/` })
@@ -52,9 +50,11 @@ export const CreateServiceModel = () => {
   </Dialog>
 }
 
-export const RouteList = () => {
+type RouteListProps = {
+  read_only:boolean
+}
+export const RouteList = ({read_only}:RouteListProps) => {
     const navigate = useNavigate({ from: '/' })
-    const {read_only} = useConfig()
     const { data } = useQuery({
       queryKey: ['repoData'],
       queryFn: getServices,

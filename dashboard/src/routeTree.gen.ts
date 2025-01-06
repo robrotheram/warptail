@@ -13,6 +13,7 @@ import { createFileRoute } from '@tanstack/react-router'
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as ProfileImport } from './routes/profile'
 import { Route as LoginImport } from './routes/login'
 import { Route as R404Import } from './routes/404'
 import { Route as UsersIndexImport } from './routes/users/index'
@@ -31,6 +32,11 @@ const SettingsLazyRoute = SettingsLazyImport.update({
   path: '/settings',
   getParentRoute: () => rootRoute,
 } as any).lazy(() => import('./routes/settings.lazy').then((d) => d.Route))
+
+const ProfileRoute = ProfileImport.update({
+  path: '/profile',
+  getParentRoute: () => rootRoute,
+} as any)
 
 const LoginRoute = LoginImport.update({
   path: '/login',
@@ -92,6 +98,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginImport
       parentRoute: typeof rootRoute
     }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileImport
+      parentRoute: typeof rootRoute
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -136,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexLazyRoute
   '/404': typeof R404Route
   '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
   '/settings': typeof SettingsLazyRoute
   '/routes': typeof RoutesIndexRoute
   '/users': typeof UsersIndexRoute
@@ -147,6 +161,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexLazyRoute
   '/404': typeof R404Route
   '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
   '/settings': typeof SettingsLazyRoute
   '/routes': typeof RoutesIndexRoute
   '/users': typeof UsersIndexRoute
@@ -159,6 +174,7 @@ export interface FileRoutesById {
   '/': typeof IndexLazyRoute
   '/404': typeof R404Route
   '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
   '/settings': typeof SettingsLazyRoute
   '/routes/': typeof RoutesIndexRoute
   '/users/': typeof UsersIndexRoute
@@ -172,6 +188,7 @@ export interface FileRouteTypes {
     | '/'
     | '/404'
     | '/login'
+    | '/profile'
     | '/settings'
     | '/routes'
     | '/users'
@@ -182,6 +199,7 @@ export interface FileRouteTypes {
     | '/'
     | '/404'
     | '/login'
+    | '/profile'
     | '/settings'
     | '/routes'
     | '/users'
@@ -192,6 +210,7 @@ export interface FileRouteTypes {
     | '/'
     | '/404'
     | '/login'
+    | '/profile'
     | '/settings'
     | '/routes/'
     | '/users/'
@@ -204,6 +223,7 @@ export interface RootRouteChildren {
   IndexLazyRoute: typeof IndexLazyRoute
   R404Route: typeof R404Route
   LoginRoute: typeof LoginRoute
+  ProfileRoute: typeof ProfileRoute
   SettingsLazyRoute: typeof SettingsLazyRoute
   RoutesIndexRoute: typeof RoutesIndexRoute
   UsersIndexRoute: typeof UsersIndexRoute
@@ -215,6 +235,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexLazyRoute: IndexLazyRoute,
   R404Route: R404Route,
   LoginRoute: LoginRoute,
+  ProfileRoute: ProfileRoute,
   SettingsLazyRoute: SettingsLazyRoute,
   RoutesIndexRoute: RoutesIndexRoute,
   UsersIndexRoute: UsersIndexRoute,
@@ -237,6 +258,7 @@ export const routeTree = rootRoute
         "/",
         "/404",
         "/login",
+        "/profile",
         "/settings",
         "/routes/",
         "/users/",
@@ -252,6 +274,9 @@ export const routeTree = rootRoute
     },
     "/login": {
       "filePath": "login.tsx"
+    },
+    "/profile": {
+      "filePath": "profile.tsx"
     },
     "/settings": {
       "filePath": "settings.lazy.tsx"
