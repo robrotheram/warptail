@@ -62,12 +62,16 @@ func NewAuthentication(mux *chi.Mux, db *bun.DB, config utils.AuthenticationConf
 	return &auth
 }
 
-func GetRequestEscapeUrl(r *http.Request) string {
+func ParseUrlFromRequest(r *http.Request) string {
 	fullURL := r.URL.Scheme + "://" + r.Host + r.URL.RequestURI()
 	if r.URL.Scheme == "" {
 		fullURL = "http://" + r.Host + r.URL.RequestURI()
 	}
-	return url.QueryEscape(fullURL)
+	parsedURL, _ := url.Parse(fullURL)
+	queryParams := parsedURL.Query()
+	queryParams.Del("token")
+	parsedURL.RawQuery = queryParams.Encode()
+	return parsedURL.String()
 }
 
 func (auth *Authentication) Login(w http.ResponseWriter, r *http.Request) {
@@ -86,11 +90,20 @@ func (auth *Authentication) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (auth *Authentication) Authenticate(w http.ResponseWriter, r *http.Request, handler func(w http.ResponseWriter, r *http.Request)) {
+	token := r.URL.Query().Get("token")
+	if len(token) > 0 {
+		session, _ := auth.sessionStore.Get(r, "auth-session")
+		session.Values["jwt"] = token
+		session.Save(r, w)
+		http.Redirect(w, r, ParseUrlFromRequest(r), http.StatusTemporaryRedirect)
+		return
+	}
+
 	_, err := auth.GetUser(w, r)
 	if err != nil {
 		if r.Method == "GET" {
 			path, _ := url.JoinPath(auth.baseUrl, "/login")
-			redirectURL := fmt.Sprintf("%s?next=%s", path, GetRequestEscapeUrl(r))
+			redirectURL := fmt.Sprintf("%s?next=%s", path, url.QueryEscape(ParseUrlFromRequest(r)))
 			http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 			return
 		}
@@ -105,16 +118,12 @@ func (auth *Authentication) GetUser(w http.ResponseWriter, r *http.Request) (Use
 	session, _ := auth.sessionStore.Get(r, "auth-session")
 	token, ok := session.Values["jwt"].(string)
 	if !ok {
-		token = r.URL.Query().Get("token")
-		if len(token) > 0 {
-			session.Values["jwt"] = token
-			session.Save(r, w)
-		} else {
-			token = r.Header.Get("Authorization")
-		}
+		token = r.Header.Get("Authorization")
 	}
 	identifier, tokenType, err := DecodeToken(token, auth.JWTProvider.secretKey)
 	if err != nil {
+		session.Options.MaxAge = -1
+		session.Save(r, w)
 		return user, err
 	}
 	switch tokenType {
