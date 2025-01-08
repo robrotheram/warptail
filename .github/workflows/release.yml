@@ -38,12 +38,8 @@ jobs:
       - name: Build Go binary
         run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o warptail-${{ matrix.goarch }} .
 
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./warptail-${{ matrix.goarch }}
-          asset_name: warptail-${{ matrix.goarch }}
-          asset_content_type: application/octet-stream
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: warptail-${{ matrix.goarch }}
