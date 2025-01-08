@@ -14,34 +14,36 @@ jobs:
         goarch: [amd64, arm64, arm]
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '22'
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: "22"
 
-    - name: Install dependencies
-      run: npm install
-      working-directory: ./dashboard
+      - name: Install dependencies
+        run: npm install
+        working-directory: ./dashboard
 
-    - name: Build dashboard
-      run: npm run build
-      working-directory: ./dashboard
+      - name: Build dashboard
+        run: npm run build
+        working-directory: ./dashboard
 
-    - name: Set up Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: '1.23'
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: "1.23"
 
-    - name: Build Go binary
-      run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o warptail-${{ matrix.goarch }} .
-      
-    - name: Upload release asset
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./warptail-${{ matrix.goarch }}
-        asset_name: warptail-${{ matrix.goarch }}
-        asset_content_type: application/octet-stream
+      - name: Build Go binary
+        run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o warptail-${{ matrix.goarch }} .
+
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./warptail-${{ matrix.goarch }}
+          asset_name: warptail-${{ matrix.goarch }}
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
