@@ -54,7 +54,7 @@ const TailScaleForm = ({ config }: TailScaleFormProps) => {
     return <>
         <CardContent>
             <div className="grid grid-cols-2 gap-2">
-                <div>
+                <div className="flex flex-col gap-2">
                     <Label htmlFor="AuthKey">Tailscale API Key</Label>
                     <Input
                         id="AuthKey"
@@ -65,7 +65,7 @@ const TailScaleForm = ({ config }: TailScaleFormProps) => {
                         disabled={!editMode}
                     />
                 </div>
-                <div>
+                <div className="flex flex-col gap-2">
                     <Label htmlFor="Hostname">Tailscale Hostname</Label>
                     <Input
                         id="Hostname"
@@ -77,6 +77,7 @@ const TailScaleForm = ({ config }: TailScaleFormProps) => {
                     />
                 </div>
             </div>
+            
         </CardContent>
         <CardFooter
             className={`flex justify-end`}
@@ -148,8 +149,7 @@ const SettingComponent = () => {
         return JSON.stringify(error)
     }
 
-    return <div className='flex flex-col space-y-6'>
-        <Card>
+    return <Card className="container mx-auto p-2">
             <div className='flex justify-between'>
                 <CardHeader>
                     <CardTitle className='text-3xl'>Tailscale</CardTitle>
@@ -159,7 +159,6 @@ const SettingComponent = () => {
             </div>
             <TailScaleForm config={data} />
         </Card>
-    </div>
 }
 
 

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"embed"
 	"fmt"
 	"net/http"
 	"strings"
@@ -23,7 +24,7 @@ type api struct {
 	authentication *auth.Authentication
 }
 
-func NewApi(router *router.Router, config utils.Config) *chi.Mux {
+func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 	db := utils.NewDB(config)
 	mux := chi.NewMux()
 	api := api{
@@ -80,7 +81,7 @@ func NewApi(router *router.Router, config utils.Config) *chi.Mux {
 		})
 	})
 
-	spa := NewUI(config)
+	spa := NewUI(config, ui)
 	mux.Get("/config", spa.HandleConfig)
 	mux.Get("/*", spa.ServeHTTP)
 

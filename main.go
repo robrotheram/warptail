@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"embed"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +11,9 @@ import (
 	"warptail/pkg/router"
 	"warptail/pkg/utils"
 )
+
+//go:embed all:dashboard/dist
+var ui embed.FS
 
 var (
 	config     utils.Config
@@ -47,7 +51,7 @@ func StartK8Router(cfg utils.Config, rt *router.Router) {
 		rt.Controllers = append(rt.Controllers, ctrl)
 	}
 	go controller.StartController(rt)
-	mux := api.NewApi(rt, cfg)
+	mux := api.NewApi(rt, cfg, ui)
 
 	addr := cfg.Application.GetHTTPAddr()
 	utils.Logger.Info("Starting API on http://localhost" + addr)
@@ -57,7 +61,7 @@ func StartK8Router(cfg utils.Config, rt *router.Router) {
 
 func StartRouter(cfg utils.Config, rt *router.Router) {
 	defer rt.StopAll()
-	mux := api.NewApi(rt, cfg)
+	mux := api.NewApi(rt, cfg, ui)
 	if ctrl, err := controller.NewConfigController(configPath, rt); err == nil {
 		rt.Controllers = append(rt.Controllers, ctrl)
 	}

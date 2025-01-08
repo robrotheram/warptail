@@ -128,7 +128,7 @@ const UserComponent = () => {
     return JSON.stringify(error)
   }
 
-  return <Card>
+  return <Card className="container mx-auto p-2 space-y-6">
     <CardHeader className='flex flex-row justify-between'>
       <div className='space-y-1.5 flex flex-col'>
         <CardTitle>Users</CardTitle>
