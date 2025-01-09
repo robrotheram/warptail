@@ -35,8 +35,14 @@ jobs:
         with:
           go-version: "1.23"
 
+      - name: Get Git Tag and Build Time
+        id: vars  
+        run: |
+          echo "git_tag=$(git describe --tags)" >> $GITHUB_ENV
+          echo "build_time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+
       - name: Build Go binary
-        run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o warptail-${{ matrix.goarch }} .
+        run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-X 'main.version=${{ env.git_tag }}' -X 'main.buildTime=${{ env.build_time }}'"  -o warptail-${{ matrix.goarch }} .
 
       - name: Release
         uses: softprops/action-gh-release@v2

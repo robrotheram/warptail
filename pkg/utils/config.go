@@ -42,6 +42,14 @@ type Config struct {
 	Logging     LoggingConfig     `yaml:"logging"`
 }
 
+var ConfigPath = os.Getenv("CONFIG_PATH")
+
+func init() {
+	if len(ConfigPath) == 0 {
+		ConfigPath = "config.yaml"
+	}
+}
+
 func ConfigHash(path string) [16]byte {
 	data, err := os.ReadFile(path)
 	if err != nil {

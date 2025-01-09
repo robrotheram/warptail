@@ -21,6 +21,8 @@ database:
 
 application:
   port: 8080  # The main port the application listens on
+  #site_logo: https://example.com/logo.png # Optional custom logo 
+  #site_name: My Custom Name # Optional custom name 
   authentication:
     baseURL: http://localhost:8001
     secretKey: CHANGE_ME 

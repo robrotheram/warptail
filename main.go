@@ -1,56 +1,81 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"embed"
 	"log"
 	"net/http"
 	"os"
 	"warptail/pkg/api"
+	"warptail/pkg/cmd"
 	"warptail/pkg/controller"
 	"warptail/pkg/router"
 	"warptail/pkg/utils"
+
+	"github.com/urfave/cli/v3"
 )
 
 //go:embed all:dashboard/dist
 var ui embed.FS
 
 var (
-	config     utils.Config
-	configPath = os.Getenv("CONFIG_PATH")
+	version = "dev"
 )
 
-func init() {
-	if len(configPath) == 0 {
-		configPath = "config.yaml"
+func main() {
+	cmd := &cli.Command{
+		Name:    "warptail",
+		Usage:   "Tailscale proxy service",
+		Version: version,
+		Commands: []*cli.Command{
+			{
+				Name:   "install",
+				Usage:  "install warptail as a systemd service",
+				Action: cmd.InstallService,
+			},
+			{
+				Name:   "uninstall",
+				Usage:  "complete a task on the list",
+				Action: cmd.UninstallService,
+			},
+			{
+				Name:   "update",
+				Usage:  "update warptail to the latest release",
+				Action: cmd.Update,
+			},
+		},
+		Action: ApplicationCmd,
 	}
-	var err error
-	config, err = utils.LoadConfig(configPath)
-	if err != nil {
-		utils.Logger.Error(err, "invalid config")
-		os.Exit(1)
+
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
+		log.Fatal(err)
 	}
 }
 
-func main() {
-	router := router.NewRouter()
-	err := router.Init(config)
+func ApplicationCmd(ctx context.Context, cmd *cli.Command) error {
+	config, err := utils.LoadConfig(utils.ConfigPath)
 	if err != nil {
-		utils.Logger.Error(err, "unable to create router")
-		return
+		return err
+	}
+	router := router.NewRouter()
+	err = router.Init(config)
+	if err != nil {
+		return err
 	}
 	router.GetTailScaleStatus()
 
 	if utils.IsEmptyStruct(config.Kubernetes) {
 		utils.Logger.Info("Starting Server")
-		StartRouter(config, router)
+		return StartRouter(config, router)
 	} else {
 		utils.Logger.Info("Kubernetes Configured Starting Server")
-		StartK8Router(config, router)
+		return StartK8Router(config, router)
 	}
+
 }
 
-func StartK8Router(cfg utils.Config, rt *router.Router) {
+func StartK8Router(cfg utils.Config, rt *router.Router) error {
 	defer rt.StopAll()
 	if ctrl, err := controller.NewK8Controller(cfg.Kubernetes); err == nil {
 		rt.Controllers = append(rt.Controllers, ctrl)
@@ -60,14 +85,13 @@ func StartK8Router(cfg utils.Config, rt *router.Router) {
 
 	addr := cfg.Application.GetHTTPAddr()
 	utils.Logger.Info("Starting API on http://localhost" + addr)
-	err := http.ListenAndServe(addr, mux)
-	utils.Logger.Error(err, "unable to start api")
+	return http.ListenAndServe(addr, mux)
 }
 
-func StartRouter(cfg utils.Config, rt *router.Router) {
+func StartRouter(cfg utils.Config, rt *router.Router) error {
 	defer rt.StopAll()
 	mux := api.NewApi(rt, cfg, ui)
-	if ctrl, err := controller.NewConfigController(configPath, rt); err == nil {
+	if ctrl, err := controller.NewConfigController(utils.ConfigPath, rt); err == nil {
 		rt.Controllers = append(rt.Controllers, ctrl)
 	}
 
@@ -89,12 +113,10 @@ func StartRouter(cfg utils.Config, rt *router.Router) {
 				CurvePreferences:         []tls.CurveID{tls.X25519, tls.CurveP256},
 			},
 		}
-		err := srv.ListenAndServeTLS("", "") // Key and cert provided automatically by autocert.
-		log.Fatal(err)
+		return srv.ListenAndServeTLS("", "") // Key and cert provided automatically by autocert.
 	} else {
 		addr := cfg.Application.GetHTTPAddr()
 		utils.Logger.Info("Starting API on http://localhost" + addr)
-		err := http.ListenAndServe(addr, mux)
-		log.Fatal(err, "unable to start api")
+		return http.ListenAndServe(addr, mux)
 	}
 }

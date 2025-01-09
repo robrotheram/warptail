@@ -228,6 +228,59 @@ This setup ensures flexibility in managing access levels while maintaining a sec
 
 
 
+Here's a section you can add to your README for installation:
+
+---
+
+## Installation Binary 
+
+### Prerequisites
+Before installing `warptail`, ensure that you have the following:
+- A Linux-based operating system with `systemd` enabled.
+- Administrator/root privileges to install services.
+
+### Installing Warptail
+
+To install `warptail` as a systemd service, follow these steps:
+
+1. **Download the Binary**  
+   Download the `warptail` binary from the [releases page](https://github.com/robrotheram/warptail/releases)
+
+2. **Make the Binary Executable**  
+   Run the following command to make the binary executable:
+   ```bash
+   chmod +x warptail
+   ```
+
+3. **Install the Service**  
+   Use the `install` command to install `warptail` as a systemd service:
+   ```bash
+   ./warptail install
+   ```
+
+4. **Verify the Installation**  
+   Check that the service is active and running:
+   ```bash
+   systemctl status warptail
+   ```
+
+### Updating Warptail
+
+To update `warptail` to the latest version, simply run:
+```bash
+./warptail update
+```
+
+### Uninstalling Warptail
+
+If you need to remove `warptail`, run:
+```bash
+./warptail uninstall
+```
+
+
+
+
 ## Running WarpTail on Docker
 
 When running WarpTail in Docker, you'll need to mount the `config.yaml` to the container and decide between specifying all proxy ports upfront or using host networking for dynamic routing.
