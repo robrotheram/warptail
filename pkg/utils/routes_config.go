@@ -1,5 +1,11 @@
 package utils
 
+import (
+	"errors"
+	"fmt"
+	"regexp"
+)
+
 type RouteType string
 
 const (
@@ -49,5 +55,79 @@ func RouteComparison(v1, v2 RouteConfig) bool {
 		}
 	}
 	return true
+}
 
+func ValidatePort(port int) error {
+	if port < 0 || port > 65535 {
+		return errors.New("invalid port: must be between 0 and 65535")
+	}
+	return nil
+}
+
+func ValidateHostname(hostname string) error {
+	if len(hostname) > 255 {
+		return errors.New("hostname is too long: must not exceed 255 characters")
+	}
+
+	// Regular expression for hostname validation
+	hostnameRegex := `^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$`
+	matched, err := regexp.MatchString(hostnameRegex, hostname)
+	if err != nil {
+		return errors.New("error while validating hostname")
+	}
+	if !matched {
+		return errors.New("invalid hostname format")
+	}
+	return nil
+}
+
+// ValidateDomain validates a domain name (with stricter rules).
+func ValidateDomain(domain string) error {
+	if len(domain) > 253 {
+		return errors.New("domain is too long: must not exceed 253 characters")
+	}
+
+	// Regular expression for domain validation
+	domainRegex := `^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`
+	matched, err := regexp.MatchString(domainRegex, domain)
+	if err != nil {
+		return errors.New("error while validating domain")
+	}
+	if !matched {
+		return errors.New("invalid domain format")
+	}
+	return nil
+}
+
+func (cfg ServiceConfig) validate() error {
+	for _, route := range cfg.Routes {
+		if len(route.Machine.Address) == 0 {
+			return fmt.Errorf("invalid config for route %s missing tailscale `machine.address`", cfg.Name)
+		} else if err := ValidateHostname(route.Machine.Address); err != nil {
+			return fmt.Errorf("invalid config for route %s `machine.address` %w", cfg.Name, err)
+		}
+		if (route.Machine.Port) == 0 {
+			return fmt.Errorf("invalid config for route %s missing tailscale `machine.port`", cfg.Name)
+		} else if err := ValidatePort(int(route.Machine.Port)); err != nil {
+			return fmt.Errorf("invalid config for route %s `machine.port` %w", cfg.Name, err)
+		}
+		switch route.Type {
+		case HTTP, HTTPS:
+			if len(route.Domain) == 0 {
+				return fmt.Errorf("invalid config for route %s missing `domain`", cfg.Name)
+			} else if err := ValidateDomain(route.Domain); err != nil {
+				return fmt.Errorf("invalid config for route %s `domian` %w", cfg.Name, err)
+			}
+
+		case TCP, UDP:
+			if route.Port == 0 {
+				return fmt.Errorf("invalid config for route %s missing `port`", cfg.Name)
+			} else if err := ValidatePort(int(route.Port)); err != nil {
+				return fmt.Errorf("invalid config for route %s `port` %w", cfg.Name, err)
+			}
+		default:
+			return fmt.Errorf("invalid config for route %s missing or invalid `type` choose between [http,https,tcp,udp]", cfg.Name)
+		}
+	}
+	return nil
 }

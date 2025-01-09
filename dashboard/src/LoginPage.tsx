@@ -19,7 +19,7 @@ export const LoginPage: React.FC = () => {
   const [userLogin, setUserLogin] = useState<Login>({ username: "", password: "" })
   const [token, setToken] = useState<string>()
   const [alert, setAlert] = useState<string>()
-  const { auth_type } = useConfig()
+  const { auth_type, site_name, site_logo } = useConfig()
   const { login } = useAuth()
   const navigate = useNavigate()
   const authenticate = useMutation({
@@ -69,8 +69,8 @@ export const LoginPage: React.FC = () => {
   return (
     <Card className="col-span-2 my-10 mx-auto max-w-screen-sm">
       <CardHeader className="pb-2 flex flex-row items-center justify-center gap-4">
-        <img alt="warptail-logo" src='/logo.png' className='w-20' />
-        <CardTitle className="text-3xl">WarpTail</CardTitle>
+        <img alt={site_name?site_name:"WarpTail"} src={site_logo?site_logo:'/logo.png'} className='w-20' />
+        <CardTitle className="text-3xl">{site_name?site_name:"WarpTail"}</CardTitle>
       </CardHeader>
       <CardContent className='space-y-4'>
 

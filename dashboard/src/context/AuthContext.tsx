@@ -1,7 +1,8 @@
 import { getProfile, User } from '@/lib/api';
 import { LoginPage } from '@/LoginPage';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { Loader2 } from 'lucide-react';
 import React, { createContext, useState, useContext, useMemo, useCallback, useEffect } from 'react';
 
 interface AuthContextType {
@@ -16,12 +17,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient()
+
   const [token, setToken] = useState<string | null>(() =>
     sessionStorage.getItem('token')
   );
-  const { data: user } = useQuery({
+  const { data: user, isLoading } = useQuery({
     queryKey: ['profile'],
     queryFn: () => getProfile(token),
+    retry: false
   })
 
 
@@ -43,17 +47,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback((newToken: string) => {
     sessionStorage.setItem('token', newToken);
     setToken(newToken);
+    queryClient.invalidateQueries({ queryKey: ['profile'] });
 
   }, []);
 
   const logout = useCallback(() => {
     sessionStorage.removeItem('token');
     setToken(null);
-
     navigate({ to: '/login' })
   }, []);
 
-  const isAuthenticated = !!user;
+  const isAuthenticated = !!user && !!token;
 
   const value = useMemo(
     () => ({
@@ -66,6 +70,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [token, user, isAuthenticated, login, logout]
   );
 
+  if (isLoading) {
+    return <Loader/>
+  }
   return (
     <AuthContext.Provider value={value}>
       {isAuthenticated ? children : <LoginPage />}
@@ -89,3 +96,10 @@ const parseJwt = (token: string) => {
     return null;
   }
 };
+
+
+export const Loader = () => {
+  return <div className="grid place-items-center h-screen w-full">
+    <Loader2 className='animate-spin h-16 w-16' />
+  </div>
+}

@@ -7,6 +7,7 @@ import React from "react"
 import { useAuth } from "./context/AuthContext"
 import { Avatar, AvatarFallback } from "./components/ui/avatar"
 import { Role, User } from "./lib/api"
+import { useConfig } from "./context/ConfigContext"
 
 interface LinksProps {
   to: string;
@@ -38,6 +39,7 @@ const Links = [
 
 
 export const HeaderNav = () => {
+  const { site_name, site_logo } = useConfig()
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const handleLogout = () => {
@@ -54,21 +56,21 @@ export const HeaderNav = () => {
           <span className="sr-only">Toggle Menu</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="">
-        <div className="w-full">
+      <SheetContent side="left" className="flex flex-col">
+        <div className="w-full border-b pb-4">
           <Link to="/" className="group w-full flex items-center justify-left gap-4 rounded-full">
-            <img alt="warptail logo" src="/logo.png" className="h-14 w-14 transition-all" />
-            <h1 className="text-2xl">WarpTail</h1>
+            <img alt={site_name ? site_name : "WarpTail"} src={site_logo ? site_logo : '/logo.png'} className="h-14 w-14 transition-all" />
+            <h1 className="text-2xl">{site_name ? site_name : "WarpTail"}</h1>
           </Link>
         </div>
-        <nav className="grid gap-6 text-lg font-medium py-6">
+        <nav className="flex flex-col gap-6 text-lg font-medium flex-grow">
           {user?.role === Role.ADMIN && Links.map((link: LinksProps) => <Link key={link.to} to={link.to} className="flex items-center gap-4 px-2.5 text-foreground">
             {link.icon({ className: link.className })}
             <span className="sr-only">{link.label}</span>
             {link.label}
           </Link>)}
-
-
+        </nav>
+        <footer className="flex flex-col gap-4 px-2 pt-4 border-t">
           <Link to={"/profile"} className="flex items-center gap-4 text-foreground">
             <ProfileIcon user={user} />
             Your Profile
@@ -77,25 +79,25 @@ export const HeaderNav = () => {
             <LogOut className="h-5 w-5" />
             Logout
           </button>
+        </footer>
 
-        </nav>
+
 
       </SheetContent>
     </Sheet>
   </header>
 }
 export const SideNav = () => {
+  const { site_name, site_logo } = useConfig()
   const { logout, user } = useAuth()
-  const navigate = useNavigate()
   const handleLogout = () => {
     logout();
-    navigate({ to: '/' })
   }
 
   return <aside className="fixed inset-y-0 left-0 z-10 hidden w-14 flex-col border-r bg-background sm:flex justify-between">
     <nav className="flex flex-col items-center gap-4 px-2 sm:py-5">
       <Link to="/" className="group flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-full">
-        <img alt="warptail logo" src="/logo.png" className="h-full w-full transition-all group-hover:scale-110" />
+        <img alt={site_name ? site_name : "WarpTail"} src={site_logo ? site_logo : '/logo.png'} className="h-full w-full transition-all group-hover:scale-110" />
         <span className="sr-only">Load Balancer</span>
       </Link>
       {user?.role === Role.ADMIN && Links.map((link: LinksProps) =>

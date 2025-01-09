@@ -9,6 +9,8 @@ import (
 type ApplicationConfig struct {
 	Port           int                  `yaml:"port"`
 	Authentication AuthenticationConfig `yaml:"authentication"`
+	SiteName       string               `yaml:"site_name,omitempty"`
+	SiteLogo       string               `yaml:"site_logo,omitempty"`
 	Acme           struct {
 		Enabled         bool   `yaml:"enabled"`
 		SslPort         int    `yaml:"ssl_port"`

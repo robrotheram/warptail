@@ -24,7 +24,12 @@ func init() {
 	if len(configPath) == 0 {
 		configPath = "config.yaml"
 	}
-	config = utils.LoadConfig(configPath)
+	var err error
+	config, err = utils.LoadConfig(configPath)
+	if err != nil {
+		utils.Logger.Error(err, "invalid config")
+		os.Exit(1)
+	}
 }
 
 func main() {

@@ -13,6 +13,19 @@ export const ConfigProvider = ({ children }: { children: ReactNode }): ReactNode
         queryFn: getConfig,
     })
 
+    if (config?.site_name){
+        document.title = config?.site_name;
+    }
+    
+    if (config?.site_logo){
+        let link = document.querySelector("link[rel~='icon'][sizes='16x16']") as HTMLLinkElement;
+        link.href = config.site_logo;
+        link = document.querySelector("link[rel~='icon'][sizes='32x32']") as HTMLLinkElement;
+        link.href = config.site_logo;
+        link = document.querySelector("link[rel~='apple-touch-icon']") as HTMLLinkElement;
+        link.href = config.site_logo;
+    }
+
     return (
         <ConfigContext.Provider value={config}>
             {children}

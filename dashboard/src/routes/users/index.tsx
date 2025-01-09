@@ -14,6 +14,7 @@ import { useState } from 'react'
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { UserEditForm } from '@/components/forms/UserForm'
+import { Loader } from '@/context/AuthContext'
 
 
 
@@ -121,8 +122,11 @@ const UserComponent = () => {
     queryFn: getUsers,
   })
 
+
+
+
   if (isPending || isLoading) {
-    return "LOADING"
+    return <Loader/>
   } else if (error) {
     console.log(error)
     return JSON.stringify(error)

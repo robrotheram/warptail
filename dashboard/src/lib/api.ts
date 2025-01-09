@@ -38,6 +38,8 @@ export interface Config {
     read_only: boolean
     auth_type: string
     auth_name: string
+    site_name?: string
+    site_logo?: string
 }
 
 

@@ -53,7 +53,7 @@ const TailScaleForm = ({ config }: TailScaleFormProps) => {
     }
     return <>
         <CardContent>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid md:grid-cols-2 gap-4 grid-cols-1">
                 <div className="flex flex-col gap-2">
                     <Label htmlFor="AuthKey">Tailscale API Key</Label>
                     <Input
@@ -108,12 +108,13 @@ const TailScaleStatusComponent = () => {
     if (!data) {
         return null
     } 
-    return <CardHeader className='w-[33%] space-y-3'>
-        <CardTitle className='text-xl'>Version: {data.version}</CardTitle>
+    return <CardHeader className='w-full lg:w-[33%] space-y-3'>
         <div className='flex gap-2 items-center'>
             <Activity className={`h-5 w-5 ${data.state === TS_STATE.RUNNING ? 'text-green-500' : 'text-red-500'}`} />
-            <p className='text-xl'>{data.state}</p>
+            <p className='text-xl text-nowrap t'>{data.state}</p>
         </div>
+        <CardTitle className='text-xl text-ellipsis '>Version: {data.version}</CardTitle>
+        
         {data.messages && data.state !== TS_STATE.RUNNING && <Accordion type="single" collapsible>
             <AccordionItem value="item-1">
                 <AccordionTrigger>Tailscale Log</AccordionTrigger>
@@ -150,7 +151,7 @@ const SettingComponent = () => {
     }
 
     return <Card className="container mx-auto p-2">
-            <div className='flex justify-between'>
+            <div className='flex flex-col lg:flex-row justify-between'>
                 <CardHeader>
                     <CardTitle className='text-3xl'>Tailscale</CardTitle>
                     <CardDescription className='text-2xl'>Manage the connection</CardDescription>

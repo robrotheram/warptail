@@ -55,7 +55,7 @@ func (ctrl *ConfigCtrl) Update(router *router.Router) {
 		}
 		svcs = append(svcs, config)
 	}
-	config := utils.LoadConfig(ctrl.path)
+	config, _ := utils.LoadConfig(ctrl.path)
 	config.Tailscale = router.GetTailScaleConfig()
 	ctrl.lastHash = utils.ConfigHash(ctrl.path)
 	config.Services = svcs
@@ -75,7 +75,7 @@ func (ctrl *ConfigCtrl) Watch() error {
 					if currentHash != ctrl.lastHash {
 						utils.Logger.Info("file modified by an external source", "source", event.Name)
 						ctrl.lastHash = currentHash
-						config := utils.LoadConfig(ctrl.path)
+						config, _ := utils.LoadConfig(ctrl.path)
 						ctrl.router.Reload(config)
 					}
 				}

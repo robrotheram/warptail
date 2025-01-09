@@ -50,7 +50,7 @@ func ConfigHash(path string) [16]byte {
 	return md5.Sum(data)
 }
 
-func LoadConfig(configPath string) Config {
+func LoadConfig(configPath string) (Config, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		log.Fatalf("error: %v", err)
@@ -60,12 +60,14 @@ func LoadConfig(configPath string) Config {
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
-	config.validate()
 	setupLogger(config.Logging)
-	return config
+	if err := config.validate(); err != nil {
+		return config, err
+	}
+	return config, nil
 }
 
-func (config *Config) validate() {
+func (config *Config) validate() error {
 	if !IsEmptyStruct(config.Kubernetes) {
 		if len(config.Kubernetes.Ingress.Name) == 0 {
 			config.Kubernetes.Certificate.Name = "warptail-route-ingress"
@@ -78,6 +80,13 @@ func (config *Config) validate() {
 			config.Kubernetes.Certificate.Name = "warptail-route-certificate"
 		}
 	}
+
+	for _, svc := range config.Services {
+		if err := svc.validate(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func IsEmptyStruct(s interface{}) bool {
