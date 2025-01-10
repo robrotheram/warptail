@@ -76,7 +76,7 @@ export const LoginPage: React.FC = () => {
 
         <form onSubmit={handleSubmit} className='flex flex-col space-y-4'>
           <div>
-            <Label>Username: </Label>
+            <Label>Email: </Label>
             <Input
               type="text"
               value={userLogin.username}

@@ -25,19 +25,23 @@ ExecStart=%s
 Restart=on-failure
 RestartSec=5
 Environment="CONFIG_PATH=%s"
+Environment="Home=%s"
 
 [Install]
 WantedBy=multi-user.target
 `
 
 const servicePath = "/etc/systemd/system/warptail.service"
+const serviceName = "warptail.service"
 
 func InstallService(ctx context.Context, cmd *cli.Command) error {
 
 	configPath, err := filepath.Abs(utils.ConfigPath)
+
 	if err != nil {
 		return fmt.Errorf("failed path to config file: %w", err)
 	}
+	configBaseDir := filepath.Dir(configPath)
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		fmt.Println("Installing config file to", configPath)
@@ -51,7 +55,7 @@ func InstallService(ctx context.Context, cmd *cli.Command) error {
 	// Write the embedded service file to /etc/systemd/system/
 	fmt.Println("Installing service file to", servicePath)
 
-	if err := os.WriteFile(servicePath, []byte(fmt.Sprintf(serviceFile, targetPath, configPath)), 0644); err != nil {
+	if err := os.WriteFile(servicePath, []byte(fmt.Sprintf(serviceFile, targetPath, configPath, configBaseDir)), 0644); err != nil {
 		return fmt.Errorf("failed to write service file: %w", err)
 	}
 
@@ -63,8 +67,13 @@ func InstallService(ctx context.Context, cmd *cli.Command) error {
 
 	// Enable the service to start on boot
 	fmt.Println("Enabling the service...")
-	if err := exec.Command("systemctl", "enable", "warptail.service").Run(); err != nil {
+	if err := exec.Command("systemctl", "enable", serviceName).Run(); err != nil {
 		return fmt.Errorf("failed to enable service: %w", err)
+	}
+
+	fmt.Println("Starting the service...")
+	if err := exec.Command("systemctl", "start", serviceName).Run(); err != nil {
+		return fmt.Errorf("failed to start service: %w", err)
 	}
 
 	fmt.Println("Service installed and enabled successfully.")
@@ -73,12 +82,12 @@ func InstallService(ctx context.Context, cmd *cli.Command) error {
 
 func UninstallService(ctx context.Context, cmd *cli.Command) error {
 	fmt.Println("Stopping the service...")
-	if err := exec.Command("systemctl", "stop", "myapp.service").Run(); err != nil {
+	if err := exec.Command("systemctl", "stop", serviceName).Run(); err != nil {
 		fmt.Printf("Warning: failed to stop service: %v\n", err)
 	}
 
 	fmt.Println("Disabling the service...")
-	if err := exec.Command("systemctl", "disable", "myapp.service").Run(); err != nil {
+	if err := exec.Command("systemctl", "disable", serviceName).Run(); err != nil {
 		fmt.Printf("Warning: failed to disable service: %v\n", err)
 	}
 

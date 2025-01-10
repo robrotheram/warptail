@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -61,8 +62,6 @@ func fetchBinary(path string) {
 		return
 	}
 
-	// Download the binary
-	fmt.Println("Binary updated successfully to " + release.TagName)
 	err = downloadBinary(assetURL, path)
 	if err != nil {
 		fmt.Printf("Error downloading binary: %v\n", err)
@@ -103,7 +102,17 @@ func Update(ctx context.Context, cmd *cli.Command) error {
 		}
 		return err
 	}
-	return os.Remove(oldPath)
+
+	os.Remove(oldPath)
+
+	if _, err := os.Stat(servicePath); err == nil {
+		fmt.Println("Starting the service...")
+		if err := exec.Command("systemctl", "restart", serviceName).Run(); err != nil {
+			return fmt.Errorf("failed to restart service: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func fetchLatestRelease() (*Release, error) {
