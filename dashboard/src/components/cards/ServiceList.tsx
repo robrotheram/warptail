@@ -42,7 +42,7 @@ export const CreateServiceModel = () => {
           onChange={handleInputChange}
           placeholder='Service Name'
         />
-        <Button  type="submit" onClick={() => { create.mutate(service) }}>
+        <Button  type="submit" onClick={() => { create.mutate(service) }} disabled={service.name.length === 0 }>
           <Plus className="mr-2 h-4 w-4" /> Create
         </Button>
       </div>
