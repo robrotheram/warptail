@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"warptail/pkg/utils"
 
 	"github.com/urfave/cli/v3"
@@ -33,9 +34,16 @@ const servicePath = "/etc/systemd/system/warptail.service"
 
 func InstallService(ctx context.Context, cmd *cli.Command) error {
 
-	fmt.Println("Installing config file to", utils.ConfigPath)
-	if err := os.WriteFile(utils.ConfigPath, configFile, 0644); err != nil {
-		return fmt.Errorf("failed to write service file: %w", err)
+	configPath, err := filepath.Abs(utils.ConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed path to config file: %w", err)
+	}
+
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		fmt.Println("Installing config file to", configPath)
+		if err := os.WriteFile(configPath, configFile, 0644); err != nil {
+			return fmt.Errorf("failed to write config file: %w", err)
+		}
 	}
 
 	targetPath, _ := CurrentExecutable()
@@ -43,7 +51,7 @@ func InstallService(ctx context.Context, cmd *cli.Command) error {
 	// Write the embedded service file to /etc/systemd/system/
 	fmt.Println("Installing service file to", servicePath)
 
-	if err := os.WriteFile(servicePath, []byte(fmt.Sprintf(serviceFile, targetPath, utils.ConfigPath)), 0644); err != nil {
+	if err := os.WriteFile(servicePath, []byte(fmt.Sprintf(serviceFile, targetPath, configPath)), 0644); err != nil {
 		return fmt.Errorf("failed to write service file: %w", err)
 	}
 
