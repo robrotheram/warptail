@@ -25,7 +25,7 @@ ExecStart=%s
 Restart=on-failure
 RestartSec=5
 Environment="CONFIG_PATH=%s"
-Environment="Home=%s"
+Environment="HOME=%s"
 
 [Install]
 WantedBy=multi-user.target
