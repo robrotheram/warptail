@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '../ui/switch'
+import { TailscaleHost } from '../utils/TailscaleHost'
 
 
 
@@ -30,18 +31,11 @@ export const RouteEditCard = ({ route, updateRoute, removeRoute }: RouteEditProp
       [name]: name === 'port' || name === 'listen' ? parseInt(value, 10) || value : value,
     })
   }
-  const handleInputMachineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    updateRoute({
-      ...route, machine: {
-        ...route.machine,
-        [name]: name === 'Port' || name === 'Listen' ? parseInt(value, 10) || value : value,
-      }
-    })
-  }
+  
   const handleSelectChange = (value: string) => {
     updateRoute({ ...route, type: value as RouterType })
   }
+
   const handleStatusChange = (value: boolean) => {
     updateRoute({ ...route, private: value })
   }
@@ -100,27 +94,7 @@ export const RouteEditCard = ({ route, updateRoute, removeRoute }: RouteEditProp
             </div>
 
           )}
-          <div className="md:col-span-5 grid md:grid-cols-2 col-span-6 gap-4 w-full">
-            <div>
-              <Label htmlFor="host">Tailscale Host</Label>
-              <Input
-                id="host"
-                name="address"
-                value={route?.machine.address}
-                onChange={handleInputMachineChange}
-              />
-            </div>
-            <div>
-              <Label htmlFor="port">Tailscale Port</Label>
-              <Input
-                id="port"
-                name="port"
-                type="number"
-                value={route?.machine.port}
-                onChange={handleInputMachineChange}
-              />
-            </div>
-          </div>
+          <TailscaleHost route={route} updateRoute={updateRoute}/>
         </div>
         <div className='flex flex-col justify-end h-full w-full md:w-auto'>
           <Button variant="destructive" onClick={() => removeRoute(route)}>

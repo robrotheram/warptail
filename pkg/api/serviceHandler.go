@@ -39,6 +39,15 @@ func (api *api) handleCreateRoute(w http.ResponseWriter, r *http.Request) {
 	utils.WriteResponse(w, http.StatusCreated, svc.Status(false))
 }
 
+func (api *api) handleGetTailscaleNodes(w http.ResponseWriter, r *http.Request) {
+	nodes, err := api.Router.GetPeers()
+	if err != nil {
+		utils.WriteErrorResponse(w, err)
+		return
+	}
+	utils.WriteData(w, nodes)
+}
+
 func (api *api) handleUpdateRoute(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	decoder := json.NewDecoder(r.Body)

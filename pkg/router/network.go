@@ -9,13 +9,13 @@ import (
 	"time"
 	"warptail/pkg/utils"
 
-	"tailscale.com/client/tailscale"
+	tailscale "tailscale.com/client/local"
 )
 
 type NetworkRoute struct {
 	config   utils.RouteConfig
 	status   RouterStatus
-	client   *tailscale.LocalClient
+	client   *tailscale.Client
 	data     *utils.TimeSeries
 	listener *net.TCPListener
 	quit     chan bool
@@ -25,7 +25,7 @@ type NetworkRoute struct {
 	heatbeat *time.Ticker
 }
 
-func NewNetworkRoute(config utils.RouteConfig, client *tailscale.LocalClient) *NetworkRoute {
+func NewNetworkRoute(config utils.RouteConfig, client *tailscale.Client) *NetworkRoute {
 	return &NetworkRoute{
 		config: config,
 		data:   utils.NewTimeSeries(time.Second, 1000),

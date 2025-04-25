@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"bytes"
 	"log"
 	"os"
+	"strings"
+	"warptail/pkg/utils/logs"
 
 	"github.com/go-logr/logr"
 	"go.uber.org/zap/zapcore"
@@ -10,14 +13,18 @@ import (
 )
 
 var Logger logr.Logger
+var LogBuffer *bytes.Buffer
+var RequestLogger *logs.LoggingResponseWriter
 
 const DefaultLogOutput = "stdout"
 const DefaultLevel = "info"
+const DefaultLogPath = "/var/log/warptail"
 
 type LoggingConfig struct {
 	Format string `yaml:"format"`
 	Level  string `yaml:"level"`
 	Output string `yaml:"output"`
+	Path   string `yaml:"path"`
 }
 
 func (cfg *LoggingConfig) Default() {
@@ -30,11 +37,14 @@ func (cfg *LoggingConfig) Default() {
 	if len(cfg.Level) == 0 {
 		cfg.Level = DefaultLevel
 	}
+	if len(cfg.Path) == 0 {
+		cfg.Path = DefaultLogPath
+	}
 }
 
 func setupLogger(logCfg LoggingConfig) {
-
 	logCfg.Default()
+
 	// Create an encoder config with custom colors
 	encoderConfig := zapcore.EncoderConfig{
 		TimeKey:        "time",
@@ -72,13 +82,34 @@ func setupLogger(logCfg LoggingConfig) {
 		opts.Encoder = zapcore.NewConsoleEncoder(encoderConfig)
 	}
 
+	// Initialize the in-memory log buffer
+	LogBuffer = &bytes.Buffer{}
+
+	var writers []zapcore.WriteSyncer
+	writers = append(writers, zapcore.AddSync(LogBuffer)) // Add in-memory buffer
+
 	if logCfg.Output != DefaultLogOutput {
 		file, err := os.OpenFile(logCfg.Output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			log.Fatalf("Failed to open log file %s: %v", logCfg.Output, err)
 		}
-		opts.DestWriter = file
+		writers = append(writers, zapcore.AddSync(file))
+	} else {
+		writers = append(writers, zapcore.AddSync(os.Stdout))
 	}
+
+	opts.DestWriter = zapcore.NewMultiWriteSyncer(writers...)
+
 	Logger = zap.New(zap.UseFlagOptions(&opts))
 
+	err := os.MkdirAll(logCfg.Path, os.ModePerm)
+	if err != nil {
+		log.Fatalf("Failed to open log file %s: %v", logCfg.Output, err)
+	}
+	RequestLogger, _ = logs.NewAccessLogWriter(logCfg.Path)
+}
+
+// GetLogs returns the logs stored in memory as a string
+func GetLogs() []string {
+	return strings.Split(LogBuffer.String(), "\n")
 }

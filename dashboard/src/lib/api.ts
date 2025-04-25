@@ -32,6 +32,9 @@ export interface TS_STATUS {
     messages: string[]
     version: string
     state: TS_STATE
+    nodes: TailsaleNode[]
+    hostname: string
+    key_expiry: Date
 }
 
 export interface Config {
@@ -42,6 +45,15 @@ export interface Config {
     site_logo?: string
 }
 
+export interface TailsaleNode {
+    id: string
+    hostname : string
+    ip: string
+    online: boolean
+    os: string
+    key_expiry: Date
+    last_seen: string
+}
 
 export interface CreateService {
     name: string
@@ -70,6 +82,7 @@ export interface Route {
 }
 
 export interface Machine {
+    node?: string
     address: string
     port: number
 }
@@ -269,6 +282,14 @@ export const deleteUser = async (user: User): Promise<User> => {
 export const getProfile = async (token?: string | null): Promise<User> => {
     const response = await axios.get(`${AUTH_URL}/profile`, {
         headers: getAuth(token),
+    });
+    return response.data;
+}
+
+
+export const getTailScaleNodes = async (): Promise<TailsaleNode[]> => {
+    const response = await axios.get(`${API_URL}/tailsale/nodes`, {
+        headers: getAuth(),
     });
     return response.data;
 }

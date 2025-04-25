@@ -109,3 +109,30 @@ export function getLast10MinutesData(points: TimeSeriesPoint[]): TimeSeriesPoint
 
   return applyMovingAverage(smoothPoints, 3);
 }
+
+
+export type ParsedLog = {
+  timestamp: string;
+  level: string;
+  message: string;
+};
+
+
+export const parseLog = (log: string): ParsedLog | null => {
+  console.log(log);
+  // log = `2025-04-11T20:49:40.236+0100\\t\\u001b[34mINFO\\u001b[0m\\tAuthLoop: state is Running; done`;
+  const regex = /^(.+?)\\t\\u001b\[.*?m(.*?)\\u001b\[0m\\t(.+)$/;
+  const match = regex.exec(log);
+
+  if (!match) return null;
+
+  const [, rawTimestamp, level, message] = match;
+
+  const timestamp = (rawTimestamp);
+
+  return {
+    timestamp,
+    level,
+    message,
+  };
+}

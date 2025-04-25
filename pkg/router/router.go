@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"net/http"
 	"warptail/pkg/utils"
 
@@ -150,4 +151,20 @@ func (r *Router) StopAll() {
 	for _, svc := range r.Services {
 		svc.Stop()
 	}
+}
+
+func (r *Router) GetPeers() ([]TailscalePeers, *utils.RouterError) {
+	c, _ := r.ts.LocalClient()
+	status, err := c.Status(context.Background())
+	if err != nil {
+		return []TailscalePeers{}, utils.CustomError(http.StatusInternalServerError, "unable to get tailscale status")
+	}
+	nodes := []TailscalePeers{}
+	for _, peer := range status.Peer {
+		nodes = append(nodes, TailscalePeers{
+			HostName: peer.HostName,
+			IP:       peer.TailscaleIPs[0].String(),
+		})
+	}
+	return nodes, nil
 }

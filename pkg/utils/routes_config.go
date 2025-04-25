@@ -30,8 +30,9 @@ type RouteConfig struct {
 }
 
 type Machine struct {
-	Address string `yaml:"address" json:"address"`
-	Port    uint16 `yaml:"port" json:"port"`
+	NodeName string `yaml:"node" json:"node,omitempty"`
+	Address  string `yaml:"address" json:"address"`
+	Port     uint16 `yaml:"port" json:"port"`
 }
 
 func RouteComparison(v1, v2 RouteConfig) bool {

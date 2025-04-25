@@ -32,7 +32,7 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 	}
 	mux.Use(middleware.RequestID)
 	mux.Use(middleware.RealIP)
-	// mux.Use(middleware.Logger)
+	mux.Use(utils.RequestLogger.Middleware)
 	mux.Use(middleware.Recoverer)
 	mux.Use(middleware.Compress(5))
 	mux.Use(api.proxy)
@@ -56,7 +56,6 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 		r.Use(api.authentication.DashboardMiddleware)
 		r.Get("/api/services", api.handleGetRoutes)
 		r.Get("/api/services/{id}", api.handleGetRoute)
-
 	})
 	mux.Group(func(r chi.Router) {
 		r.Use(api.authentication.DashboardAdminMiddleware)
@@ -65,7 +64,7 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 			r.Post("/tailscale", api.handleUpdateTailscaleSettings)
 			r.Get("/tailscale/status", api.handleUpdateTailscaleSatus)
 		})
-
+		r.Get("/api/tailsale/nodes", api.handleGetTailscaleNodes)
 		r.Post("/api/services", api.handleCreateRoute)
 
 		r.Put("/api/services/{id}", api.handleUpdateRoute)

@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+@layer base {
+  :root {
+    --background: 0 0% 6%;          /* Changed from 210 100% 6% */
+    --foreground: 0 0% 90%;         /* Changed from 180 100% 90% */
+    --primary: 0 0% 28%;            /* Changed from 200 100% 28% */
+    --primary-foreground: 0 0% 90%; /* Changed from 180 100% 90% */
+    --secondary: 0 0% 30%;          /* Changed from 203 23% 30% */
+    --secondary-foreground: 0 0% 90%; /* Changed from 180 100% 90% */
+    --accent: 198 70% 50%;          /* Kept this blue for accent */
+    --accent-foreground: 0 0% 13%;  /* Changed from 185 10% 13% */
+    --destructive: 0 98% 44%;       /* Kept original red */
+    --destructive-foreground: 0 0% 100%;
+    --muted: 0 0% 30%;             /* Changed from 200 50% 30% */
+    --muted-foreground: 0 0% 90%;   /* Changed from 180 100% 90% */
+    --card: 0 0% 12%;              /* Changed from 210 100% 12% */
+    --card-foreground: 0 0% 90%;    /* Changed from 180 100% 90% */
+    --popover: 0 0% 15%;           /* Changed from 210 100% 15% */
+    --popover-foreground: 0 0% 90%; /* Changed from 180 100% 90% */
+    --border: 0 0% 40%;            /* Changed from 210 50% 40% */
+    --input: 0 0% 40%;             /* Changed from 210 50% 40% */
+  }
+}
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}

@@ -49,9 +49,10 @@ func NewAuthentication(mux *chi.Mux, db *bun.DB, config utils.AuthenticationConf
 	if provider, err := NewOpenIdProvider(providerConfig, auth.sessionStore, auth.users); err == nil {
 		auth.OICDProvider = provider
 		mux.HandleFunc("/auth/callback", auth.OICDProvider.Callback)
-	} else {
-		utils.Logger.Error(err, "unable to create oidc")
 	}
+	// else {
+	// 	utils.Logger.Error(err, "unable to create oidc")
+	// }
 
 	if provider, err := NewJWTAuthProvider(providerConfig, auth.sessionStore, auth.users); err == nil {
 		auth.JWTProvider = provider

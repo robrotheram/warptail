@@ -10,12 +10,25 @@ import (
 )
 
 type TailscaleStatus struct {
-	Messages []string `json:"messages"`
-	Version  string   `json:"version"`
-	State    string   `json:"state"`
+	Messages  []string         `json:"messages"`
+	Version   string           `json:"version"`
+	State     string           `json:"state"`
+	Peers     []TailscalePeers `json:"nodes"`
+	HostName  string           `json:"hostname"`
+	KeyExpiry *time.Time       `json:"key_expiry"`
 }
 
-func LogPrintf(format string, args ...interface{}) {
+type TailscalePeers struct {
+	Id        string    `json:"id"`
+	HostName  string    `json:"hostname"`
+	IP        string    `json:"ip"`
+	LastSeen  time.Time `json:"last_seen"`
+	Online    bool      `json:"online"`
+	Os        string    `json:"os"`
+	KeyExpiry time.Time `json:"key_expiry"`
+}
+
+func LogPrintf(format string, args ...any) {
 	logger := utils.Logger
 	formattedMessage := fmt.Sprintf(format, args...)
 	logger.Info(formattedMessage)
@@ -55,10 +68,26 @@ func (r *Router) GetTailScaleStatus() TailscaleStatus {
 	if err != nil {
 		return TailscaleStatus{}
 	}
+
+	nodes := []TailscalePeers{}
+	for _, peer := range status.Peer {
+		nodes = append(nodes, TailscalePeers{
+			Id:       string(peer.ID),
+			HostName: peer.HostName,
+			IP:       peer.TailscaleIPs[0].String(),
+			LastSeen: peer.LastSeen,
+			Os:       peer.OS,
+			Online:   peer.Online,
+		})
+	}
+
 	return TailscaleStatus{
-		Version:  status.Version,
-		State:    status.BackendState,
-		Messages: status.Health,
+		HostName:  r.ts.Hostname,
+		KeyExpiry: status.Self.KeyExpiry,
+		Version:   status.Version,
+		State:     status.BackendState,
+		Peers:     nodes,
+		Messages:  utils.GetLogs(),
 	}
 }
 

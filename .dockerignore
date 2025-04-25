@@ -7,3 +7,5 @@ warptail
 docker-compose.yaml
 prometheus.yaml
 config
+
+warptail.db
