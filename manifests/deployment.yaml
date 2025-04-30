@@ -33,6 +33,8 @@ spec:
           volumeMounts:
             - name: config-volume
               mountPath: /app/config
+            - name: tailscale-config
+              mountPath: /.config
       volumes:
         - name: config-volume
           configMap:
@@ -40,3 +42,18 @@ spec:
             items:
               - key: config.yaml
                 path: config.yaml
+        - name: tailscale-config
+          persistentVolumeClaim:
+            claimName: tailscale-config-pvc
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tailscale-config-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
