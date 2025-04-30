@@ -21,3 +21,24 @@ func (api *api) handleUpdateTailscaleSettings(w http.ResponseWriter, r *http.Req
 func (api *api) handleUpdateTailscaleSatus(w http.ResponseWriter, r *http.Request) {
 	utils.WriteData(w, api.GetTailScaleStatus())
 }
+
+func (api *api) handleGetLogs(w http.ResponseWriter, r *http.Request) {
+	var logs []string
+	var err error
+	switch r.URL.Query().Get("type") {
+	case "access":
+		logs, err = utils.RequestLogger.GetLogs("access")
+	case "error":
+		logs, err = utils.RequestLogger.GetLogs("error")
+	case "server":
+		logs = utils.GetLogs()
+	default:
+		utils.WriteErrorResponse(w, utils.BadReqError("do not know log type"))
+		return
+	}
+	if err != nil {
+		utils.WriteErrorResponse(w, utils.BadReqError("unable to get logs"))
+		return
+	}
+	utils.WriteData(w, logs)
+}

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Bot Detection Challenge</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --gradient-start: #0f172a;
+            --gradient-middle: #141414;
+            --gradient-end: #0f172a;
+            --text-primary: #ffffff;
+            --text-secondary: #cbd5e1;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+            background: conic-gradient(at top right, var(--gradient-start), var(--gradient-middle), var(--gradient-end));
+            color: var(--text-primary);
+            position: relative;
+        }
+
+        .backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(2px);
+        }
+
+        .container {
+            position: relative;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 1rem;
+        }
+
+        .content {
+            max-width: 48rem;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .icon-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .icon-container {
+            position: relative;
+        }
+
+        .icon-pulse {
+            position: absolute;
+            inset: 0;
+            animation: pulse 2s infinite;
+            background: #3b82f6;
+            border-radius: 50%;
+            filter: blur(1rem);
+            opacity: 0.5;
+        }
+
+        .icon {
+            position: relative;
+            width: 4rem;
+            height: 4rem;
+        }
+
+        .title {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            background: linear-gradient(to right, #60a5fa, #a855f7);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .subtitle {
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+            max-width: 36rem;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: rgba(31, 41, 55, 0.5);
+            backdrop-filter: blur(8px);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(75, 85, 99, 0.5);
+        }
+
+        .result {
+            margin-top: 2rem;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            text-align: center;
+            transform: translateY(0);
+            transition: all 0.5s;
+            backdrop-filter: blur(4px);
+        }
+
+        .result-human {
+            background: linear-gradient(to right, rgba(22, 163, 74, 0.5), rgba(5, 150, 105, 0.5));
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .result-bot {
+            background: linear-gradient(to right, rgba(220, 38, 38, 0.5), rgba(236, 72, 153, 0.5));
+            border: 1px solid rgba(244, 63, 94, 0.2);
+        }
+
+        .result-processing {
+            background: linear-gradient(to right, rgba(56, 119, 255, 0.5), rgba(37, 99, 235, 0.5));
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .result-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .result-icon-human {
+            color: #4ade80;
+        }
+
+        .result-icon-bot {
+            color: #f87171;
+        }
+
+        .result-title {
+            font-size: 1.875rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .result-text {
+            color: var(--text-secondary);
+        }
+
+        .progress-bar {
+            width: 100%;
+            background-color: #e0e0e0;
+            padding: 3px;
+            border-radius: 3px;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, .2);
+            margin-top: 2rem;
+        }
+
+        .progress-bar-fill {
+            display: block;
+            height: 22px;
+            background-color: #0064fa;
+            border-radius: 3px;
+
+            transition: width 500ms ease-in-out;
+        }
+
+        .loader {
+            position: relative;
+            width: 78px;
+            height: 78px;
+            border-radius: 50%;
+            box-sizing: border-box;
+            background: #fff;
+            border: 8px solid #131a1d;
+            overflow: hidden;
+        }
+
+        .loader::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: -50%;
+            width: 100%;
+            height: 100%;
+            background: #263238;
+            z-index: 5;
+            border-bottom: 8px solid #131a1d;
+            box-sizing: border-box;
+            animation: eyeShade 3s infinite;
+        }
+
+        .loader::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            bottom: 15px;
+            width: 32px;
+            z-index: 2;
+            height: 32px;
+            background: #111;
+            border-radius: 50%;
+            animation: eyeMove 3s infinite;
+        }
+
+        @keyframes eyeShade {
+            0% {
+                transform: translateY(0)
+            }
+
+            20% {
+                transform: translateY(5px)
+            }
+
+            40%,
+            50% {
+                transform: translateY(-5px)
+            }
+
+            60% {
+                transform: translateY(-8px)
+            }
+
+            75% {
+                transform: translateY(5px)
+            }
+
+            100% {
+                transform: translateY(10px)
+            }
+        }
+
+        @keyframes eyeMove {
+            0% {
+                transform: translate(0, 0)
+            }
+
+            20% {
+                transform: translate(0px, 5px)
+            }
+
+            40%,
+            50% {
+                transform: translate(0px, -5px)
+            }
+
+            60% {
+                transform: translate(-10px, -5px)
+            }
+
+            75% {
+                transform: translate(-20px, 5px)
+            }
+
+            100% {
+                transform: translate(0, 10px)
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="content">
+            <div class="header">
+                <div class="icon-wrapper">
+                    <div class="icon-container">
+                        <div class="icon-pulse"></div>
+                        <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brain">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                            <path d="M15.5 13a3.5 3.5 0 0 0 -3.5 3.5v1a3.5 3.5 0 0 0 7 0v-1.8" />
+                            <path d="M8.5 13a3.5 3.5 0 0 1 3.5 3.5v1a3.5 3.5 0 0 1 -7 0v-1.8" />
+                            <path d="M17.5 16a3.5 3.5 0 0 0 0 -7h-.5" />
+                            <path d="M19 9.3v-2.8a3.5 3.5 0 0 0 -7 0" />
+                            <path d="M6.5 16a3.5 3.5 0 0 1 0 -7h.5" />
+                            <path d="M5 9.3v-2.8a3.5 3.5 0 0 1 7 0v10" />
+                        </svg>
+
+                    </div>
+                </div>
+                <h1 class="title">AI Bot Detector</h1>
+                <p class="subtitle">
+                    Advanced behavioral analysis to distinguish between human and automated interactions
+                </p>
+            </div>
+            <div id="container"></div>
+            <noscript>
+                <div class="result result-bot">
+                    <h3 class="result-title">Error: JavaScript Required</h3>
+                    <p class="result-text">This page requires JavaScript to run the Proof of Work challenge. Please
+                        enable JavaScript and refresh
+                        the page.
+                    </p>
+                </div>
+            </noscript>
+        </div>
+    </div>
+
+</body>
+
+</html>
+
+
+<template id="processing-template">
+    <div class="result result-processing">
+        <div class="result-icon">
+            <span class="loader"></span>
+        </div>
+        <h3 class="result-title">Are you bot?</h3>
+        <div class="progress-bar">
+            <span class="progress-bar-fill" style="width: 0%;"></span>
+        </div>
+        <p class="result-text">
+            Analysis complete based on your interaction patterns and behavior
+        </p>
+    </div>
+</template>
+
+<template id="human-template">
+    <div class="result result-human">
+        <div class="result-icon">
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                fill="currentColor" class="icon icon-tabler icons-tabler-filled icon-tabler-shield-check">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                <path
+                    d="M11.998 2l.118 .007l.059 .008l.061 .013l.111 .034a.993 .993 0 0 1 .217 .112l.104 .082l.255 .218a11 11 0 0 0 7.189 2.537l.342 -.01a1 1 0 0 1 1.005 .717a13 13 0 0 1 -9.208 16.25a1 1 0 0 1 -.502 0a13 13 0 0 1 -9.209 -16.25a1 1 0 0 1 1.005 -.717a11 11 0 0 0 7.531 -2.527l.263 -.225l.096 -.075a.993 .993 0 0 1 .217 -.112l.112 -.034a.97 .97 0 0 1 .119 -.021l.115 -.007zm3.71 7.293a1 1 0 0 0 -1.415 0l-3.293 3.292l-1.293 -1.292l-.094 -.083a1 1 0 0 0 -1.32 1.497l2 2l.094 .083a1 1 0 0 0 1.32 -.083l4 -4l.083 -.094a1 1 0 0 0 -.083 -1.32z" />
+            </svg>
+        </div>
+        <h3 class="result-title">We think you are human</h3>
+        <p class="result-text">
+            Analysis complete based on your interaction patterns and behavior
+        </p>
+    </div>
+</template>
+
+<template id="bot-template">
+    <div class="result result-bot">
+        <div class="result-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="icon result-icon-bot">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                <path
+                    d="M13.252 20.601c-.408 .155 -.826 .288 -1.252 .399a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.19 7.357" />
+                <path d="M22 22l-5 -5" />
+                <path d="M17 22l5 -5" />
+            </svg>
+        </div>
+        <h3 class="result-title">Likely Bot</h3>
+        <p class="result-text" id="message"></p>
+    </div>
+</template>
+
+
+<script>
+    const container = document.getElementById('container');
+    const processingTemplate = document.getElementById('processing-template').innerHTML;
+    const humanTemplate = document.getElementById('human-template').innerHTML;
+    const botTemplate = document.getElementById('bot-template').innerHTML;
+
+    function showProcessing() {
+        container.innerHTML = processingTemplate;
+    }
+    function showHuman() {
+        container.innerHTML = humanTemplate;
+    }
+    function showBot(msg = "Analysis complete based on your interaction patterns and behavior") {
+        container.innerHTML = botTemplate;
+        document.getElementById('message').innerHTML = msg;
+    }
+
+    const mouseMovements = [];
+    function trackMouseMovement(event) {
+        const x = event.clientX;
+        const y = event.clientY;
+        mouseMovements.push({ x, y });
+    }
+
+    function distanceMouseMovements() {
+        let distance = 0;
+        for (let i = 1; i < mouseMovements.length; i++) {
+            const dx = mouseMovements[i].x - mouseMovements[i - 1].x;
+            const dy = mouseMovements[i].y - mouseMovements[i - 1].y;
+            distance += Math.sqrt(dx * dx + dy * dy);
+        }
+        return distance;
+    }
+
+    document.addEventListener('mousemove', trackMouseMovement);
+
+    function success(nonce, difficulty, hash, it) {
+        let data = {
+            nonce: nonce,
+            difficulty: difficulty,
+            hash: hash,
+            it: it
+        };
+
+        fetch("/bot/verify", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        }).then((response) => {
+            if (response.ok) {
+                showHuman();
+                window.location.reload();
+            } else {
+                showBot();
+            }
+        }).catch((error) => {
+            showBot();
+        });
+    }
+
+    function sha512(string) {
+        return new Promise((resolve, reject) => {
+            if (!window.crypto || !window.crypto.subtle) {
+                showBot("Web Crypto API not available. Please use HTTPS and a modern browser.");
+                reject(new Error("Web Crypto API not available. Please use HTTPS and a modern browser."));
+                return;
+            }
+            let buffer = (new TextEncoder).encode(string);
+            window.crypto.subtle.digest('SHA-512', buffer.buffer).then(result => {
+                resolve(Array.from(new Uint8Array(result)).map(
+                    c => c.toString(16).padStart(2, '0')
+                ).join(''));
+            }, reject);
+        });
+    }
+
+    async function process(nonce, difficulty = 4) {
+        let hash;
+        var it = 0;
+        function getCompletionPercent(it) {
+            const exp = Math.pow(2, 4 * difficulty);
+            return Math.floor((1 - 1 / (Math.pow(it / exp * 3, 2) + 1)) * 100);
+        }
+        var currentNonce
+        do {
+            it++;
+            currentNonce = nonce + it; // change nonce each iteration
+            hash = await sha512(currentNonce);
+            if (it % 2000 === 0) {
+                document.getElementsByClassName("progress-bar-fill")[0].style.width = getCompletionPercent(it) + "%";
+            }
+        } while (hash.substr(0, difficulty) !== Array(difficulty + 1).join('0'));
+        success(nonce, difficulty, hash, it);
+        console.log("Mouse Movements: ", distanceMouseMovements());
+    }
+    setTimeout(() => {
+        let challengeNonce = "{{.Nonce}}"; // Replace with the actual challenge nonce
+        let difficulty = "{{.Difficulty}}"; // Replace with the actual difficulty
+        process(challengeNonce, parseInt(difficulty));
+    }, 100);
+    showProcessing();
+</script>

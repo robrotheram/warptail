@@ -10,7 +10,6 @@ import (
 )
 
 type TailscaleStatus struct {
-	Messages  []string         `json:"messages"`
 	Version   string           `json:"version"`
 	State     string           `json:"state"`
 	Peers     []TailscalePeers `json:"nodes"`
@@ -20,6 +19,7 @@ type TailscaleStatus struct {
 
 type TailscalePeers struct {
 	Id        string    `json:"id"`
+	Name      string    `json:"name"`
 	HostName  string    `json:"hostname"`
 	IP        string    `json:"ip"`
 	LastSeen  time.Time `json:"last_seen"`
@@ -73,6 +73,7 @@ func (r *Router) GetTailScaleStatus() TailscaleStatus {
 	for _, peer := range status.Peer {
 		nodes = append(nodes, TailscalePeers{
 			Id:       string(peer.ID),
+			Name:     peer.DNSName,
 			HostName: peer.HostName,
 			IP:       peer.TailscaleIPs[0].String(),
 			LastSeen: peer.LastSeen,
@@ -87,7 +88,6 @@ func (r *Router) GetTailScaleStatus() TailscaleStatus {
 		Version:   status.Version,
 		State:     status.BackendState,
 		Peers:     nodes,
-		Messages:  utils.GetLogs(),
 	}
 }
 

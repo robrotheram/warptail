@@ -22,11 +22,12 @@ type ServiceConfig struct {
 }
 
 type RouteConfig struct {
-	Type    RouteType `yaml:"type" json:"type"`
-	Private bool      `yaml:"private" json:"private,omitempty"`
-	Domain  string    `yaml:"domain,omitempty" json:"domain,omitempty"`
-	Port    int       `yaml:"port,omitempty" json:"port,omitempty"`
-	Machine Machine   `yaml:"machine" json:"machine"`
+	Type       RouteType `yaml:"type" json:"type"`
+	Private    bool      `yaml:"private" json:"private,omitempty"`
+	BotProtect bool      `yaml:"bot_protect" json:"bot_protect,omitempty"`
+	Domain     string    `yaml:"domain,omitempty" json:"domain,omitempty"`
+	Port       int       `yaml:"port,omitempty" json:"port,omitempty"`
+	Machine    Machine   `yaml:"machine" json:"machine"`
 }
 
 type Machine struct {
@@ -88,6 +89,9 @@ func ValidateDomain(domain string) error {
 		return errors.New("domain is too long: must not exceed 253 characters")
 	}
 
+	if domain == "localhost" {
+		return nil
+	}
 	// Regular expression for domain validation
 	domainRegex := `^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`
 	matched, err := regexp.MatchString(domainRegex, domain)

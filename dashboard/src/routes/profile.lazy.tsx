@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { useAuth } from '@/context/AuthContext'
 import { updateUser } from '@/lib/api'
 import { useMutation } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createLazyFileRoute } from '@tanstack/react-router'
 import { InfoIcon } from 'lucide-react'
 
 
@@ -60,6 +60,6 @@ export const ProfilePage: React.FC = () => {
 }
 
 
-export const Route = createFileRoute('/profile')({
-  component: () => <ProfilePage />,
+export const Route = createLazyFileRoute('/profile')({
+  component: () => <ProfilePage/>,
 })

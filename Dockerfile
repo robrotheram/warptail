@@ -5,7 +5,7 @@ WORKDIR /dashboard
 RUN npm i; npm run build; 
 
 
-FROM golang:1.23 AS go_builder
+FROM golang:1.24 AS go_builder
 ARG VER
 WORKDIR /server
 COPY --from=ui_builder /dashboard/dist /server/dashboard/dist

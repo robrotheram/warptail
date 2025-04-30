@@ -18,7 +18,7 @@ type HTTPRoute struct {
 	status   RouterStatus
 	data     *utils.TimeSeries
 	latency  time.Duration
-	heatbeat time.Ticker
+	heatbeat *time.Ticker
 	*http.Client
 }
 
@@ -86,12 +86,14 @@ func (route *HTTPRoute) Handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (route *HTTPRoute) heartbeat(timeout time.Duration) {
-	route.heatbeat = *time.NewTicker(timeout)
+	route.heatbeat = time.NewTicker(timeout) // pointer, not value
 	go func() {
 		for range route.heatbeat.C {
 			if route.status != RUNNING {
 				route.latency = -1
 				route.heatbeat.Stop()
+				route.heatbeat = nil
+				return // exit goroutine after stopping ticker
 			}
 			route.Client.Timeout = 5 * time.Second
 			start := time.Now()

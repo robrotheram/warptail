@@ -12,8 +12,10 @@ import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { AnsiHtml } from 'fancy-ansi/react';
 import { Switch } from '@/components/ui/switch'
+import { ServerLogs } from '@/components/logs/ServerLogs'
+import { AccessLogs } from '@/components/logs/AccessLogs'
+import { ErrorLogs } from '@/components/logs/ErrorLogs'
 
 const TailScaleForm = () => {
 
@@ -178,38 +180,34 @@ const formatLastSeen = (dateString: string) => {
   })
 }
 
-const TailsaleMessages = ({ logs }: { logs: string[] }) => {
+const TailsaleMessages = () => {
   return (
     <TabsContent value="logs" className="mt-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Terminal className="h-5 w-5" />
-            Server Logs
-          </CardTitle>
-          <CardDescription>Recent messages from the TailScale client</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="bg-muted/50 rounded-md p-4 h-[400px] overflow-y-auto font-mono text-sm">
-            {logs.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">No logs available</div>
-            ) : (
-              <div className="space-y-2">
-                {logs.filter(l => l !== "").map((log) => {
-                  return (
-                    <div className="flex items-start gap-2 pb-2 border-b border-border">
-                      <div className="flex flex-1 gap-2 text-nowrap">
-                        <AnsiHtml className="" text={log} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </TabsContent>
+      <Tabs defaultValue="server">
+        <Card>
+          <CardHeader className='flex flex-row gap-2 justify-between'>
+
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Terminal className="h-5 w-5" />
+                Server Logs
+              </CardTitle>
+              <CardDescription>Recent server logs</CardDescription>
+            </div>
+            <TabsList>
+              <TabsTrigger value="server">Server Logs</TabsTrigger>
+              <TabsTrigger value="access">Access Logs</TabsTrigger>
+              <TabsTrigger value="error">Error Logs</TabsTrigger>
+            </TabsList>
+          </CardHeader>
+          <CardContent>
+            <TabsContent value="server"><ServerLogs /></TabsContent>
+            <TabsContent value="access"><AccessLogs /></TabsContent>
+            <TabsContent value="error"><ErrorLogs /></TabsContent>
+          </CardContent>
+        </Card>
+      </Tabs>
+    </TabsContent >
   )
 }
 
@@ -221,8 +219,8 @@ type TailScaleNodesProps = {
   nodes: TailsaleNode[]
 }
 const TailScaleNodes = ({ nodes }: TailScaleNodesProps) => {
-  const [sortField, setSortField] = useState<SortField>("hostname")
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
+  const [sortField, setSortField] = useState<SortField>("online")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
 
   // Handle sorting
   const handleSort = (field: SortField) => {
@@ -310,8 +308,8 @@ const TailScaleNodes = ({ nodes }: TailScaleNodesProps) => {
             <TableBody>
               {sortedNodes.map((node) => (
                 <TableRow key={node.id}>
-                  <TableCell className="font-medium">{node.hostname}</TableCell>
-                  <TableCell>{node.hostname}</TableCell>
+                  <TableCell className="font-medium">{node.name}</TableCell>
+                  <TableCell>{node.ip}</TableCell>
                   <TableCell>
                     <Badge
                       variant={node.online ? "default" : "secondary"}
@@ -390,11 +388,11 @@ const SettingComponent = () => {
       <Tabs defaultValue="table">
         <TabsList>
           <TabsTrigger value="table">List Nodes</TabsTrigger>
-          <TabsTrigger value="logs"><TerminalIcon className='h-4'/> Logs</TabsTrigger>
+          <TabsTrigger value="logs"><TerminalIcon className='h-4' /> Logs</TabsTrigger>
           <TabsTrigger value="status"><CogIcon className='h-4' /> Settings</TabsTrigger>
         </TabsList>
         <TailScaleNodes nodes={data?.nodes || []} />
-        <TailsaleMessages logs={data?.messages || []} />
+        <TailsaleMessages />
         <TailScaleForm />
       </Tabs>
     </div>

@@ -89,7 +89,7 @@ export const RouteList = ({read_only}:RouteListProps) => {
                       {svc.enabled && svc.latency ? `${svc.latency} ms` : "n/a"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={`${svc.enabled ? "success" : "destructive"}`}>{`${svc.enabled ? "Active" : "Inactive"}`}</Badge>
+                      <Badge variant={`${svc.enabled ? "default" : "destructive"}`}>{`${svc.enabled ? "Active" : "Inactive"}`}</Badge>
                     </TableCell>
                   </TableRow>
                 })}

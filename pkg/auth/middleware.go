@@ -141,10 +141,12 @@ func (auth *Authentication) DashboardAdminMiddleware(next http.Handler) http.Han
 		user, err := auth.GetUser(w, r)
 		if err != nil {
 			http.Error(w, "Authentication failed. Invalid token.", http.StatusUnauthorized)
+			utils.LogHttpError(r, fmt.Errorf("Authentication failed. Invalid token: %v", err))
 			return
 		}
 		if user.Role != ADMIN {
 			http.Error(w, "Authentication failed. Permission Denied.", http.StatusUnauthorized)
+			utils.LogHttpError(r, fmt.Errorf("Authentication failed. Permission Denied: %v", err))
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -156,6 +158,7 @@ func (auth *Authentication) DashboardMiddleware(next http.Handler) http.Handler 
 		_, err := auth.GetUser(w, r)
 		if err != nil {
 			http.Error(w, "Authentication failed. Invalid token.", http.StatusUnauthorized)
+			utils.LogHttpError(r, fmt.Errorf("Authentication failed. Invalid token: %v", err))
 			return
 		}
 		next.ServeHTTP(w, r)

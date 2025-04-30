@@ -106,6 +106,7 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
     const routes = [{
       type: "",
       private: false,
+      bot_protect: false,
       machine: {
         address: "",
         port: 0,

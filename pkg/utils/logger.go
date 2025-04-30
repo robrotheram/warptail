@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"warptail/pkg/utils/logs"
@@ -112,4 +113,8 @@ func setupLogger(logCfg LoggingConfig) {
 // GetLogs returns the logs stored in memory as a string
 func GetLogs() []string {
 	return strings.Split(LogBuffer.String(), "\n")
+}
+
+func LogHttpError(r *http.Request, err error) {
+	RequestLogger.LogError(r, err)
 }

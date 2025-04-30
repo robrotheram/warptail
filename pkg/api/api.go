@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"warptail/pkg/auth"
+	botprotect "warptail/pkg/botProtect"
 	"warptail/pkg/router"
 	"warptail/pkg/utils"
 
@@ -22,6 +23,7 @@ const SvcContext = apiCtx("service")
 type api struct {
 	*router.Router
 	authentication *auth.Authentication
+	botProtect     *botprotect.BotChallenge
 }
 
 func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
@@ -43,6 +45,7 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 	}))
 
 	api.authentication = auth.NewAuthentication(mux, db, config.Application.Authentication)
+	api.botProtect = botprotect.NewBotChallenge(mux, config.Application.Authentication)
 
 	mux.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -63,6 +66,7 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 			r.Get("/tailscale", api.handleTailscaleSettings)
 			r.Post("/tailscale", api.handleUpdateTailscaleSettings)
 			r.Get("/tailscale/status", api.handleUpdateTailscaleSatus)
+			r.Get(("/logs"), api.handleGetLogs)
 		})
 		r.Get("/api/tailsale/nodes", api.handleGetTailscaleNodes)
 		r.Post("/api/services", api.handleCreateRoute)
@@ -96,6 +100,9 @@ func (api *api) proxy(next http.Handler) http.Handler {
 		if route, err := api.GetHttpRoute(host); err == nil {
 			if route.Config().Private {
 				api.authentication.Authenticate(w, r, route.Handle)
+			}
+			if route.Config().BotProtect && route.Config().Type == utils.HTTPS {
+				api.botProtect.Middleware(w, r, route.Handle)
 			} else {
 				route.Handle(w, r)
 			}

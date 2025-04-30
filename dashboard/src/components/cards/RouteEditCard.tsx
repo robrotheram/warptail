@@ -39,6 +39,9 @@ export const RouteEditCard = ({ route, updateRoute, removeRoute }: RouteEditProp
   const handleStatusChange = (value: boolean) => {
     updateRoute({ ...route, private: value })
   }
+  const handleBotProtectChange = (value: boolean) => {
+    updateRoute({ ...route, bot_protect: value })
+  }
 
   return (
     <Card>
@@ -73,13 +76,22 @@ export const RouteEditCard = ({ route, updateRoute, removeRoute }: RouteEditProp
           {(route.type === RouterType.HTTP || route.type === RouterType.HTTPS) && (
 
             <div className='col-span-5 flex flex-col md:flex-row gap-4'>
-              <div className='flex flex-col py-1.5 h-full justify-end'>
+              <div className='flex flex-col py-1.5 h-full justify-end items-center'>
                 <Label htmlFor="domain">Private</Label>
                 <Switch className='mt-3'
                   checked={route.private}
                   onCheckedChange={handleStatusChange}
                 />
               </div>
+              {route.type === RouterType.HTTPS && (
+              <div className='flex flex-col py-1.5 h-full justify-end items-center'>
+                <Label htmlFor="domain">Bot Protection</Label>
+                <Switch className='mt-3'
+                  checked={route.bot_protect}
+                  onCheckedChange={handleBotProtectChange}
+                />
+              </div>
+              )}
               <div className='flex-grow'>
                 <Label htmlFor="domain">Domain</Label>
                 <Input

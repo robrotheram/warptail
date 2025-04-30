@@ -47,6 +47,7 @@ export interface Config {
 
 export interface TailsaleNode {
     id: string
+    name: string
     hostname : string
     ip: string
     online: boolean
@@ -73,6 +74,7 @@ export interface Service {
 export interface Route {
     key?: number
     private: boolean
+    bot_protect: boolean
     type: string
     domain?: string
     port?: number
@@ -231,6 +233,14 @@ export const getTSConfig = async (): Promise<Tailsale> => {
     });
     return response.data;
 }
+
+export const getLogs = async (type:string): Promise<string[]> => {
+    const response = await axios.get(`${API_URL}/settings/logs?type=${type}`, {
+        headers: getAuth(),
+    });
+    return response.data;
+}
+
 
 export const getTSSTATUS = async (): Promise<TS_STATUS> => {
     const response = await axios.get(`${API_URL}/settings/tailscale/status`, {
