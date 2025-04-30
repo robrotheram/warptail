@@ -34,7 +34,7 @@ export interface TS_STATUS {
     state: TS_STATE
     nodes: TailsaleNode[]
     hostname: string
-    key_expiry: Date
+    key_expiry: Date | null
 }
 
 export interface Config {

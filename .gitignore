@@ -9,3 +9,4 @@ prometheus.yaml
 config
 
 warptail.db
+logs/**

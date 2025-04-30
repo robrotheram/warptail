@@ -97,17 +97,24 @@ func (api *api) proxy(next http.Handler) http.Handler {
 		if colonIndex := strings.Index(host, ":"); colonIndex != -1 {
 			host = host[:colonIndex]
 		}
-		if route, err := api.GetHttpRoute(host); err == nil {
-			if route.Config().Private {
-				api.authentication.Authenticate(w, r, route.Handle)
-			}
-			if route.Config().BotProtect && route.Config().Type == utils.HTTPS {
-				api.botProtect.Middleware(w, r, route.Handle)
-			} else {
-				route.Handle(w, r)
-			}
+		route, err := api.GetHttpRoute(host)
+		if err != nil {
+			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r)
+		if route.Config().Private {
+			authenticated := false
+			api.authentication.Authenticate(w, r, func(w http.ResponseWriter, r *http.Request) {
+				authenticated = true
+			})
+			if !authenticated {
+				return
+			}
+		}
+		if route.Config().BotProtect && route.Config().Type == utils.HTTPS {
+			api.botProtect.Middleware(w, r, route.Handle)
+		} else {
+			route.Handle(w, r)
+		}
 	})
 }

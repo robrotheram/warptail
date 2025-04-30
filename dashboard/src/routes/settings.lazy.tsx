@@ -119,7 +119,7 @@ const TailScaleForm = () => {
 }
 
 type TailScaleKeyCardProps = {
-  key_expiry?: Date
+  key_expiry?: Date | null
 }
 
 const TailScaleKeyCard = ({ key_expiry }: TailScaleKeyCardProps) => {
@@ -135,6 +135,7 @@ const TailScaleKeyCard = ({ key_expiry }: TailScaleKeyCardProps) => {
 
   // Get color based on days until expiry
   const getExpiryStatusColor = (days: number) => {
+    if (key_expiry === null) return "text-gray-500"
     if (days <= 0) return "text-red-500"
     if (days <= 14) return "text-red-500"
     if (days <= 30) return "text-amber-500"
@@ -153,7 +154,7 @@ const TailScaleKeyCard = ({ key_expiry }: TailScaleKeyCardProps) => {
   const daysUntilExpiry = key_expiry ? calculateDaysUntilExpiry(new Date(key_expiry)) : 0
   const expiryStatusColor = getExpiryStatusColor(daysUntilExpiry)
 
-
+  const expiryStatusText = key_expiry === null ? "No Expiry" : daysUntilExpiry > 0 ? `${daysUntilExpiry} days` : "Key Expired"
   return <Card>
     <CardHeader className="pb-2">
       <CardTitle className="text-sm font-medium">Key Expiry</CardTitle>
@@ -162,12 +163,14 @@ const TailScaleKeyCard = ({ key_expiry }: TailScaleKeyCardProps) => {
       <div className="flex items-center gap-2">
         <Key className={`h-5 w-5 ${expiryStatusColor}`} />
         <span className={`text-xl font-bold ${expiryStatusColor}`}>
-          {daysUntilExpiry <= 0 ? "Expired" : `${daysUntilExpiry} days`}
+          {expiryStatusText}
         </span>
       </div>
-      <p className="text-xs text-muted-foreground mt-1">
-        {key_expiry ? formatExpiryDate(key_expiry) : "No expiry date"}
-      </p>
+      {key_expiry && (
+        <p className="text-xs text-muted-foreground mt-1">
+          Expired at {formatExpiryDate(key_expiry)}
+        </p>
+      )}
     </CardContent>
   </Card>
 }

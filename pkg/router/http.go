@@ -104,6 +104,7 @@ func (route *HTTPRoute) heartbeat(timeout time.Duration) {
 			}
 			resp, err := route.Get(url.String())
 			if err != nil {
+				utils.Logger.Error(err, "Error pinging server", "url", url.String())
 				route.latency = -1 // Unable to reach the server
 				continue
 			}

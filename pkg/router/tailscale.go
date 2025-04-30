@@ -56,7 +56,8 @@ func (r *Router) UpdateTailscale(config utils.TailscaleConfig) error {
 			UserLogf: LogPrintf,
 		}
 	}
-	ctx, _ := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
+	defer cancel()
 	_, err := r.ts.Up(ctx)
 
 	return err
