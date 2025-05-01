@@ -43,11 +43,15 @@ spec:
               routes:
                 items:
                   properties:
+                    bot_protect:
+                      type: boolean
                     domain:
                       type: string
                     machine:
                       properties:
                         address:
+                          type: string
+                        node:
                           type: string
                         port:
                           type: integer
