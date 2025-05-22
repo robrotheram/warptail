@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 	"warptail/pkg/utils"
 
@@ -65,23 +67,54 @@ func (route *HTTPRoute) Handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
 		return
 	}
-
-	if bodyBytes, err := io.ReadAll(r.Body); err == nil {
-		route.data.LogSent(uint64(len(bodyBytes)))
-		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	}
-
 	url, err := route.getUrl()
 	if err != nil {
 		w.WriteHeader(http.StatusBadGateway)
 		return
 	}
-	rr := NewResponseRecorder(w)
+	if bodyBytes, err := io.ReadAll(r.Body); err == nil {
+		route.data.LogSent(uint64(len(bodyBytes)))
+		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	}
 
 	proxy := httputil.NewSingleHostReverseProxy(url)
 	proxy.Transport = route.Transport
-	proxy.ServeHTTP(rr, r)
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		originalDirector(req)
 
+		// Preserve original headers
+		originalHost := req.Host
+		originalHeaders := req.Header.Clone()
+
+		req.Header = originalHeaders
+		req.Host = originalHost
+
+		// Ensure proper session and cookie handling
+		if cookies := req.Header.Get("Cookie"); cookies != "" {
+			req.Header.Set("Cookie", cookies)
+		}
+
+		// Handle WebSocket upgrades
+		if strings.HasPrefix(req.Header.Get("Connection"), "Upgrade") {
+			req.Header.Set("Connection", "Upgrade")
+		}
+	}
+
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		// Preserve session cookies and headers
+		for _, cookie := range resp.Cookies() {
+			resp.Header.Add("Set-Cookie", cookie.String())
+		}
+		return nil
+	}
+
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		log.Printf("Proxy error: %v", err)
+		http.Error(w, "Proxy error", http.StatusBadGateway)
+	}
+	rr := NewResponseRecorder(w)
+	proxy.ServeHTTP(rr, r)
 	route.data.LogRecived(uint64(rr.responseSize))
 }
 
