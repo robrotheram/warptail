@@ -1,10 +1,8 @@
 package api
 
 import (
-	"bufio"
 	"embed"
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 	"warptail/pkg/auth"
@@ -13,6 +11,8 @@ import (
 	"warptail/pkg/utils"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -32,17 +32,18 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 	api := api{
 		Router: router,
 	}
-	// mux.Use(middleware.RequestID)
-	// mux.Use(middleware.RealIP)
-	// mux.Use(utils.RequestLogger.Middleware)
-	// mux.Use(middleware.Recoverer)
-	// mux.Use(middleware.Compress(5))
+	mux.Use(middleware.RequestID)
+	mux.Use(middleware.RealIP)
+	mux.Use(middleware.Recoverer)
+	mux.Use(middleware.Compress(5))
+
+	mux.Use(utils.RequestLogger.Middleware)
 	mux.Use(api.proxy)
-	// mux.Use(cors.Handler(cors.Options{
-	// 	AllowOriginFunc: func(r *http.Request, origin string) bool { return true },
-	// 	AllowedMethods:  []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-	// 	AllowedHeaders:  []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-	// }))
+	mux.Use(cors.Handler(cors.Options{
+		AllowOriginFunc: func(r *http.Request, origin string) bool { return true },
+		AllowedMethods:  []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:  []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+	}))
 
 	api.authentication = auth.NewAuthentication(mux, db, config.Application.Authentication)
 	api.botProtect = botprotect.NewBotChallenge(mux, config.Application.Authentication)
@@ -89,24 +90,6 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 	mux.Get("/*", spa.ServeHTTP)
 
 	return mux
-}
-
-type hijackResponseWriter struct {
-	http.ResponseWriter
-}
-
-func (w *hijackResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if hj, ok := w.ResponseWriter.(http.Hijacker); ok {
-		return hj.Hijack()
-	}
-	return nil, nil, fmt.Errorf("hijacking not supported")
-}
-
-func (w *hijackResponseWriter) Flush() {
-	if fl, ok := w.ResponseWriter.(http.Flusher); ok {
-
-		fl.Flush()
-	}
 }
 
 func (api *api) proxy(next http.Handler) http.Handler {

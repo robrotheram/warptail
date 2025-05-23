@@ -3,6 +3,7 @@ package logs
 import (
 	"bufio"
 	"fmt"
+	"net"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -14,6 +15,13 @@ type HttpResponseWriter struct {
 	wroteHeader bool
 	StatusCode  int
 	Size        int
+}
+
+func (lrw *HttpResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := lrw.ResponseWriter.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+	return nil, nil, fmt.Errorf("underlying ResponseWriter does not support hijacking")
 }
 
 func (lrw *HttpResponseWriter) WriteHeader(code int) {

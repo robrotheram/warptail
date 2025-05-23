@@ -110,9 +110,42 @@ func setupLogger(logCfg LoggingConfig) {
 	RequestLogger, _ = logs.NewAccessLogWriter(logCfg.Path)
 }
 
-// GetLogs returns the logs stored in memory as a string
+// GetLogs returns the logs stored in memory as a slice of single-line strings
 func GetLogs() []string {
-	return strings.Split(LogBuffer.String(), "\n")
+	raw := LogBuffer.String()
+	lines := strings.Split(raw, "\n")
+	var logs []string
+	var entry strings.Builder
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		// If the line looks like a new log entry (starts with a timestamp), start a new entry
+		if len(logs) == 0 || isNewLogEntry(line) {
+			if entry.Len() > 0 {
+				logs = append(logs, entry.String())
+				entry.Reset()
+			}
+			entry.WriteString(strings.ReplaceAll(line, "\n", " "))
+		} else {
+			// Continuation of previous log (e.g., stack trace), append as space
+			entry.WriteString(" " + strings.ReplaceAll(line, "\n", " "))
+		}
+	}
+	if entry.Len() > 0 {
+		logs = append(logs, entry.String())
+	}
+	return logs
+}
+
+// isNewLogEntry tries to detect if a line is a new log entry by checking for a timestamp at the start
+func isNewLogEntry(line string) bool {
+	// Example: 2024-05-31T12:34:56.789Z
+	if len(line) > 20 && line[4] == '-' && line[7] == '-' && (line[10] == 'T' || line[10] == ' ') {
+		return true
+	}
+	return false
 }
 
 func LogHttpError(r *http.Request, err error) {

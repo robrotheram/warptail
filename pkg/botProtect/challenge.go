@@ -17,10 +17,40 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 //go:embed "challenge.tmpl.html"
 var challengeHtml []byte
+
+var (
+	botChallengeFailedCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "warptail_bot_challenge_failed_total",
+			Help: "Total number of failed bot challenge verifications",
+		},
+		[]string{"reason"},
+	)
+	botChallengePageRenderCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "warptail_bot_challenge_page_rendered_total",
+			Help: "Total number of times the bot challenge page was rendered (likely bots that never verify)",
+		},
+		[]string{},
+	)
+	botChallengeSuccessCounter = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "warptail_bot_challenge_success_total",
+			Help: "Total number of successful bot challenge verifications",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(botChallengeFailedCounter)
+	prometheus.MustRegister(botChallengePageRenderCounter)
+	prometheus.MustRegister(botChallengeSuccessCounter)
+}
 
 type BotChallenge struct {
 	challengeStore map[string]Verify
@@ -152,6 +182,8 @@ func (bc *BotChallenge) Middleware(w http.ResponseWriter, r *http.Request, handl
 		return
 	}
 	if !bc.valid(r) {
+		// Prometheus: count challenge page renders (likely bots without WebCrypto)
+		botChallengePageRenderCounter.WithLabelValues().Inc()
 		bc.renderTemplate(w, r)
 		return
 	}
@@ -163,12 +195,18 @@ func (bc *BotChallenge) handleVerify(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&verify)
 	if err != nil {
 		http.Error(w, "Failed to decode JSON", http.StatusBadRequest)
+		// Prometheus: count decode errors as failed challenges
+		botChallengeFailedCounter.WithLabelValues("decode_error").Inc()
 		return
 	}
 	if !verify.VerifyHash() {
 		http.Error(w, "Hash mismatch", http.StatusBadRequest)
+		// Prometheus: count hash mismatches as failed challenges
+		botChallengeFailedCounter.WithLabelValues("hash_mismatch").Inc()
 		return
 	}
+	// Prometheus: count successful challenges
+	botChallengeSuccessCounter.Inc()
 	bc.mutex.Lock()
 	challengeId := bc.fingerprint(r)
 	verify.ExpiresAt = time.Now().Add(bc.challengeTTL)
