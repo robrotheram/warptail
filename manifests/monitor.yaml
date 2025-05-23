@@ -2,9 +2,8 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: warptail-servicemonitor
-  namespace: monitoring
   labels:
-    release: prometheus  # match this to the label your Prometheus Operator uses
+    release: monitoring
 spec:
   selector:
     matchLabels:
