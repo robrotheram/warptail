@@ -73,7 +73,11 @@ func (lrw *LoggingResponseWriter) Middleware(next http.Handler) http.Handler {
 		hrw := &HttpResponseWriter{ResponseWriter: w, StatusCode: 200}
 		start := time.Now()
 		next.ServeHTTP(hrw, r)
-		lrw.LogRequest(r, start, hrw.StatusCode, hrw.Size)
+
+		// Only log if this is a proxy call (set by proxy middleware)
+		if isProxy, ok := r.Context().Value("isProxy").(bool); ok && isProxy {
+			lrw.LogRequest(r, start, hrw.StatusCode, hrw.Size)
+		}
 	})
 }
 

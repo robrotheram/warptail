@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"net/http"
@@ -37,8 +38,9 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 	mux.Use(middleware.Recoverer)
 	mux.Use(middleware.Compress(5))
 
-	mux.Use(utils.RequestLogger.Middleware)
 	mux.Use(api.proxy)
+	mux.Use(utils.RequestLogger.Middleware)
+
 	mux.Use(cors.Handler(cors.Options{
 		AllowOriginFunc: func(r *http.Request, origin string) bool { return true },
 		AllowedMethods:  []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -113,8 +115,13 @@ func (api *api) proxy(next http.Handler) http.Handler {
 			}
 		}
 		if route.Config().BotProtect && route.Config().Type == utils.HTTPS {
-			api.botProtect.Middleware(w, r, route.Handle)
+			// Only set isProxy context for the actual backend call, not for the challenge page
+			api.botProtect.Middleware(w, r, func(w http.ResponseWriter, r *http.Request) {
+				r = r.WithContext(context.WithValue(r.Context(), "isProxy", true))
+				route.Handle(w, r)
+			})
 		} else {
+			r = r.WithContext(context.WithValue(r.Context(), "isProxy", true))
 			route.Handle(w, r)
 		}
 	})
