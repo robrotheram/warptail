@@ -21,13 +21,38 @@ type ServiceConfig struct {
 	Routes  []RouteConfig `yaml:"routes" json:"routes"`
 }
 
+type ProxyRule struct {
+	Path       string `yaml:"path" json:"path"`
+	TargetHost string `yaml:"target_host,omitempty" json:"target_host,omitempty"`
+	TargetPort int    `yaml:"target_port,omitempty" json:"target_port,omitempty"`
+	Rewrite    string `yaml:"rewrite,omitempty" json:"rewrite,omitempty"`
+	StripPath  bool   `yaml:"strip_path,omitempty" json:"strip_path,omitempty"`
+}
+
+type ProxyHeaders struct {
+	Add    map[string]string `yaml:"add,omitempty" json:"add,omitempty"`
+	Remove []string          `yaml:"remove,omitempty" json:"remove,omitempty"`
+	Set    map[string]string `yaml:"set,omitempty" json:"set,omitempty"`
+}
+
+type ProxySettings struct {
+	Timeout         int           `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+	RetryAttempts   int           `yaml:"retry_attempts,omitempty" json:"retry_attempts,omitempty"`
+	BufferRequests  bool          `yaml:"buffer_requests,omitempty" json:"buffer_requests,omitempty"`
+	PreserveHost    bool          `yaml:"preserve_host,omitempty" json:"preserve_host,omitempty"`
+	FollowRedirects bool          `yaml:"follow_redirects,omitempty" json:"follow_redirects,omitempty"`
+	CustomHeaders   *ProxyHeaders `yaml:"custom_headers,omitempty" json:"custom_headers,omitempty"`
+	Rules           []ProxyRule   `yaml:"rules,omitempty" json:"rules,omitempty"`
+}
+
 type RouteConfig struct {
-	Type       RouteType `yaml:"type" json:"type"`
-	Private    bool      `yaml:"private" json:"private,omitempty"`
-	BotProtect bool      `yaml:"bot_protect" json:"bot_protect,omitempty"`
-	Domain     string    `yaml:"domain,omitempty" json:"domain,omitempty"`
-	Port       int       `yaml:"port,omitempty" json:"port,omitempty"`
-	Machine    Machine   `yaml:"machine" json:"machine"`
+	Type          RouteType      `yaml:"type" json:"type"`
+	Private       bool           `yaml:"private" json:"private,omitempty"`
+	BotProtect    bool           `yaml:"bot_protect" json:"bot_protect,omitempty"`
+	Domain        string         `yaml:"domain,omitempty" json:"domain,omitempty"`
+	Port          int            `yaml:"port,omitempty" json:"port,omitempty"`
+	Machine       Machine        `yaml:"machine" json:"machine"`
+	ProxySettings *ProxySettings `yaml:"proxy_settings,omitempty" json:"proxy_settings,omitempty"`
 }
 
 type Machine struct {

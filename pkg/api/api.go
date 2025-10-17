@@ -102,26 +102,34 @@ func (api *api) proxy(next http.Handler) http.Handler {
 		}
 		route, err := api.GetHttpRoute(host)
 		if err != nil {
+			// No matching route found, continue to next handler (likely API or static files)
 			next.ServeHTTP(w, r)
 			return
 		}
+
+		// Mark this as a proxy request for logging
+		r = r.WithContext(context.WithValue(r.Context(), "isProxy", true))
+
 		if route.Config().Private {
 			authenticated := false
 			api.authentication.Authenticate(w, r, func(w http.ResponseWriter, r *http.Request) {
 				authenticated = true
 			})
 			if !authenticated {
+				// Log authentication failure to error log
+				if utils.RequestLogger != nil {
+					utils.RequestLogger.LogError(r, fmt.Errorf("authentication failed for private route"))
+				}
 				return
 			}
 		}
+
 		if route.Config().BotProtect && route.Config().Type == utils.HTTPS {
-			// Only set isProxy context for the actual backend call, not for the challenge page
+			// Bot protection middleware handles the challenge page and actual proxy
 			api.botProtect.Middleware(w, r, func(w http.ResponseWriter, r *http.Request) {
-				r = r.WithContext(context.WithValue(r.Context(), "isProxy", true))
 				route.Handle(w, r)
 			})
 		} else {
-			r = r.WithContext(context.WithValue(r.Context(), "isProxy", true))
 			route.Handle(w, r)
 		}
 	})

@@ -41,65 +41,378 @@ end
 - A service running inside your tailnet that you want to expose to the internet.
 - Docker or Kubernetes setup.
 
+## Installation
+
+### VPS Installation (Ubuntu/Debian)
+
+This guide walks you through installing WarpTail on a VPS running Ubuntu or Debian.
+
+#### Step 1: System Preparation
+
+First, update your system and install required dependencies:
+
+```bash
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Install required packages
+sudo apt install -y curl wget git build-essential
+
+# Install Go (required for building from source)
+curl -fsSL https://golang.org/dl/go1.21.linux-amd64.tar.gz | sudo tar -xzC /usr/local
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### Step 2: Create WarpTail User
+
+Create a dedicated user for running WarpTail:
+
+```bash
+# Create warptail user
+sudo useradd -r -m -s /bin/bash warptail
+
+# Create necessary directories
+sudo mkdir -p /etc/warptail
+sudo mkdir -p /var/log/warptail
+sudo mkdir -p /var/lib/warptail
+
+# Set ownership
+sudo chown -R warptail:warptail /etc/warptail /var/log/warptail /var/lib/warptail
+```
+
+#### Step 3: Download and Install WarpTail
+
+You can either download a pre-built binary or build from source.
+
+**Option A: Download Pre-built Binary**
+```bash
+# Download the latest release (replace with actual version)
+wget https://github.com/robrotheram/warptail/releases/latest/download/warptail-linux-amd64
+sudo mv warptail-linux-amd64 /usr/local/bin/warptail
+sudo chmod +x /usr/local/bin/warptail
+```
+
+**Option B: Build from Source**
+```bash
+# Clone the repository
+git clone https://github.com/robrotheram/warptail.git
+cd warptail
+
+# Build the application
+go build -o warptail .
+
+# Install the binary
+sudo mv warptail /usr/local/bin/
+sudo chmod +x /usr/local/bin/warptail
+```
+
+#### Step 4: Configure WarpTail
+
+Create the main configuration file:
+
+```bash
+sudo tee /etc/warptail/config.yaml > /dev/null <<EOF
+tailscale:
+  authkey: "YOUR_TAILSCALE_AUTH_KEY"
+  hostname: "warptail-proxy"
+
+application:
+  host: "0.0.0.0"
+  port: 8080
+  authentication:
+    type: "password"  # or "openid"
+    name: "WarpTail Admin"
+    password: "your-secure-password"
+
+logging:
+  format: "json"
+  level: "info"
+  output: "file"
+  path: "/var/log/warptail"
+
+database:
+  path: "/var/lib/warptail/warptail.db"
+
+services: []
+EOF
+
+# Set proper ownership and permissions
+sudo chown warptail:warptail /etc/warptail/config.yaml
+sudo chmod 600 /etc/warptail/config.yaml
+```
+
+**Important**: Replace `YOUR_TAILSCALE_AUTH_KEY` with your actual Tailscale auth key from the [Tailscale Admin Console](https://login.tailscale.com/admin/settings/keys).
+
+#### Step 5: Create Systemd Service
+
+Create a systemd service file for automatic startup:
+
+```bash
+sudo tee /etc/systemd/system/warptail.service > /dev/null <<EOF
+[Unit]
+Description=WarpTail Proxy Service
+Documentation=https://github.com/robrotheram/warptail
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=warptail
+Group=warptail
+ExecStart=/usr/local/bin/warptail
+WorkingDirectory=/var/lib/warptail
+Environment=CONFIG_PATH=/etc/warptail/config.yaml
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=warptail
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/warptail /var/log/warptail
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd and enable the service
+sudo systemctl daemon-reload
+sudo systemctl enable warptail
+```
+
+#### Step 6: Configure Firewall
+
+Open the necessary ports:
+
+```bash
+# Allow WarpTail dashboard port
+sudo ufw allow 8080/tcp
+
+# Allow HTTP and HTTPS traffic (if you plan to proxy web services)
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# Enable firewall if not already enabled
+sudo ufw --force enable
+```
+
+#### Step 7: Start WarpTail
+
+Start the service and check its status:
+
+```bash
+# Start WarpTail
+sudo systemctl start warptail
+
+# Check status
+sudo systemctl status warptail
+
+# View logs
+sudo journalctl -u warptail -f
+```
+
+#### Step 8: Access the Dashboard
+
+Once WarpTail is running:
+
+1. Open your web browser and navigate to `http://YOUR_VPS_IP:8080`
+2. Log in with the credentials you set in the config file
+3. Configure your first service through the web interface
+
+#### Step 9: Configure Reverse Proxy (Optional but Recommended)
+
+For production use, it's recommended to put WarpTail behind a reverse proxy like Nginx.
+
+**Install Nginx:**
+```bash
+sudo apt install -y nginx
+```
+
+**Create Nginx configuration:**
+```bash
+sudo tee /etc/nginx/sites-available/warptail > /dev/null <<EOF
+server {
+    listen 80;
+    server_name your-domain.com;  # Replace with your domain
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+
+# Enable the site
+sudo ln -s /etc/nginx/sites-available/warptail /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+**Optional: Add SSL with Certbot:**
+```bash
+# Install Certbot
+sudo apt install -y snapd
+sudo snap install --classic certbot
+sudo ln -s /snap/bin/certbot /usr/bin/certbot
+
+# Get SSL certificate
+sudo certbot --nginx -d your-domain.com
+```
+
+#### Step 10: Configure Your First Service
+
+1. Log into the WarpTail dashboard
+2. Click "Add Service" 
+3. Configure your service:
+   - **Name**: My Web App
+   - **Type**: HTTPS
+   - **Domain**: myapp.yourdomain.com
+   - **Target**: Your Tailscale device IP and port
+   - **Private**: Enable if you want authentication
+
+#### Troubleshooting
+
+**Check WarpTail logs:**
+```bash
+sudo journalctl -u warptail -n 50
+```
+
+**Check access/error logs:**
+```bash
+sudo tail -f /var/log/warptail/access.log
+sudo tail -f /var/log/warptail/error.log
+```
+
+**Verify Tailscale connection:**
+```bash
+# Check if WarpTail appears in your Tailscale admin console
+# The hostname should be "warptail-proxy" (or what you configured)
+```
+
+**Common Issues:**
+- **Port 8080 not accessible**: Check firewall rules and VPS security groups
+- **Tailscale auth fails**: Verify your auth key is valid and not expired
+- **Services not reachable**: Ensure target services are accessible from within your Tailnet
+
+#### Updating WarpTail
+
+To update WarpTail to a newer version:
+
+```bash
+# Stop the service
+sudo systemctl stop warptail
+
+# Download new version (or rebuild from source)
+wget https://github.com/robrotheram/warptail/releases/latest/download/warptail-linux-amd64
+sudo mv warptail-linux-amd64 /usr/local/bin/warptail
+sudo chmod +x /usr/local/bin/warptail
+
+# Start the service
+sudo systemctl start warptail
+```
+
 ## Configuration
+
+### Quick VPS Installation
+
+For a quick installation on Ubuntu/Debian VPS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/robrotheram/warptail/main/scripts/install-vps.sh | bash
+```
+
+Or follow the detailed [VPS Installation Guide](docs/vps-installation.md).
+
+### Authentication Options
+
+WarpTail supports multiple authentication methods:
+
+- **No Authentication**: Remove the `authentication` section entirely
+- **Password Authentication**: Simple username/password login
+- **OpenID Connect**: Support for Google, Microsoft, GitHub, and custom OIDC providers
+
+See the [installation guide](docs/vps-installation.md#authentication-configuration) for detailed configuration examples.
+
+### Manual Configuration
 
 WarpTail uses a `config.yaml` file for all configuration management. The configuration covers settings for Tailscale authentication, dashboard access, and routing rules for exposing services.
 
 ### Sample Configuration File
 ```yaml
 tailscale:
-  auth_key: tskey-auth-XXXXXXXXXXXXXXXXXXXXXXXXXXX
-  hostname: warptail
-logging:
-  format: stdout    # Choose "json" or consol
-  level: info       # Logging level: info, warn, error
-  output: stdout    # Choose the output, "stdout" for console output or a filepath
-# Specify Routes
-routes:
-    # Example HTTP Route
-  - enabled: true
-    private: true
-    name: immich.example.io
-    type: http
-    machine:
-      address: 127.0.0.1
-      port: 30041
-
-    # Example TCP Route
-  - enabled: true
-    name: minecraft server
-    type: tcp
-    listen: 25565
-    machine:
-      address: 127.0.0.1
-      port: 25565      
-
-database:
-  connection_type: postgres # Options: sqlite, postgres, mysql
-  connection: postgresql://<user>:<password>@<host>/<dbname>?sslmode=require # Connection string for the database
+  auth_key: "tskey-auth-XXXXXXXXXXXXXXXXXXXXXXXXXXX"
+  hostname: "warptail-proxy"
 
 application:
-  port: 8080  # The primary port the application listens on
-  authentication:
-    baseURL: http://localhost:8001
-    secretKey: <REPLACE_WITH_SECRET_KEY>
-    provider: # Optional SSO provider configuration
-      name: zitadle
-      type: openid # Only openID with PKCE support is supported
-      clientID: "<CLIENT_ID>"
-      providerURL: "https://auth.exceptionerror.io"
-  acme:
-    enabled: true  # Enable ACME SSL configuration
-    ssl_port: 443  # Port for SSL/TLS connections
-    certificates_dir: /etc/proxy/certs  # Directory to store SSL certificates
-    portal_domain: warptail.excptionerror.local  # SSL domain for certificate provisioning
+  host: "0.0.0.0"
+  port: 8080
+  authentication:  # Optional - remove entire section to disable auth
+    baseURL: "https://your-domain.com"
+    secretKey: "your-random-secret-key"
+    provider:
+      name: "WarpTail Admin"
+      type: "password"  # or "openid" for SSO
+      session_secret: "your-secure-password"
+      # For OpenID providers, add:
+      # clientID: "your-client-id"
+      # providerURL: "https://your-oidc-provider.com"
+
+database:
+  path: "/var/lib/warptail/warptail.db"  # SQLite (default)
+  # For PostgreSQL/MySQL:
+  # connection_type: "postgres"
+  # connection: "postgresql://user:password@host/dbname?sslmode=require"
+
+logging:
+  format: "json"    # Choose "json" or "console"
+  level: "info"     # Logging level: info, warn, error
+  output: "file"    # Choose "stdout" for console or file path
+  path: "/var/log/warptail"
+
+services:
+  - name: "web application"
+    enabled: true
+    routes:
+      - type: "https"
+        private: false
+        bot_protect: false
+        domain: "myapp.example.com"
+        machine:
+          address: "192.168.1.100"
+          port: 8080
+        proxy_settings:  # Optional advanced routing
+          timeout: 30
+          rules:
+            - path: "/api/"
+              target_host: "api-server"
+              target_port: 3000
+              strip_path: true
+
+  - name: "minecraft server"
+    enabled: true
+    routes:
+      - type: "tcp"
+        port: 25565
+        machine:
+          address: "192.168.1.200"
+          port: 25565
 
 # Optional Kubernetes-specific configuration
 kubernetes:
-  namespace: warptail
-  ingress_name: warptail-routes
-  service_name: warptail-service
-  ingress_class: traefik
+  namespace: "warptail"
+  ingress:
+    name: "warptail-routes"
+    class: "traefik"
+  service:
+    name: "warptail-service"
 
 
 ```

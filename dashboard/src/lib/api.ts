@@ -71,6 +71,30 @@ export interface Service {
     stats: TimeSeries
 }
 
+export interface ProxyRule {
+    path: string
+    target_host?: string
+    target_port?: number
+    rewrite?: string
+    strip_path?: boolean
+}
+
+export interface ProxyHeaders {
+    add?: Record<string, string>
+    remove?: string[]
+    set?: Record<string, string>
+}
+
+export interface ProxySettings {
+    timeout?: number
+    retry_attempts?: number
+    buffer_requests?: boolean
+    preserve_host?: boolean
+    follow_redirects?: boolean
+    custom_headers?: ProxyHeaders
+    rules?: ProxyRule[]
+}
+
 export interface Route {
     key?: number
     private: boolean
@@ -81,6 +105,7 @@ export interface Route {
     machine: Machine
     status?: RouterStatus
     latency?: number
+    proxy_settings?: ProxySettings
 }
 
 export interface Machine {

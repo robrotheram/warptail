@@ -135,8 +135,8 @@ func (lrw *LoggingResponseWriter) GetLogs(logType string) ([]string, error) {
 
 func (lrw *LoggingResponseWriter) LogError(r *http.Request, err error) {
 	timestamp := time.Now().Format("2006/01/02 15:04:05")
-	logLine := fmt.Sprintf("[%s] [error] client: %s, request: GET %s, error: %v", timestamp, getClientIP(r), r.RequestURI, err)
-	lrw.accessLog.WriteString(logLine + "\n")
+	logLine := fmt.Sprintf("[%s] [error] client: %s, request: %s %s, error: %v", timestamp, getClientIP(r), r.Method, r.RequestURI, err)
+	lrw.errorLog.WriteString(logLine + "\n")
 }
 
 func (lrw *LoggingResponseWriter) Close() error {

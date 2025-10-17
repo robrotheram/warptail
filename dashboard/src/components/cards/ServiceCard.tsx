@@ -139,15 +139,37 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
     <div className="container mx-auto p-2 space-y-6">
       <div className={`grid grid-cols-1 gap-0 space-y-6 md:gap-6 md:space-y-0 ${user?.role === Role.ADMIN && "md:grid-cols-3 "}`}>
         <Card className="col-span-2 flex flex-col justify-between">
-          <CardContent>
-            <CardHeader className='flex flex-col px-0 space-y-4'>
-              {edit &&<h1 className='text-3xl'>Edit the service</h1>}
-              {!edit && <CardTitle>{service.name}</CardTitle>}
-              {edit &&<div className="flex flex-col gap-2">
-                <Label htmlFor="name">Service Name:</Label>
-                <Input id="name" name="name" value={service.name} onChange={handleInputChange} />
-              </div>}
-            </CardHeader>
+          <CardContent className="p-12">
+            {edit ? (
+              <div className="space-y-8">
+                <h1 className="text-3xl font-bold">Edit Service</h1>
+                <div className="flex flex-col gap-3">
+                  <Label htmlFor="name">Service Name:</Label>
+                  <Input id="name" name="name" value={service.name} onChange={handleInputChange} />
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center space-y-6 max-w-lg mx-auto">
+                  <h1 className="text-5xl font-bold text-foreground leading-tight tracking-tight">{service.name}</h1>
+                  <div className="flex items-center justify-center gap-8 text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                      <span className="text-lg font-medium">
+                        {service.routes.length} {service.routes.length === 1 ? 'Route' : 'Routes'}
+                      </span>
+                    </div>
+                    <div className="w-px h-6 bg-border"></div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${service.enabled ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      <span className={`text-lg font-medium ${service.enabled ? 'text-green-600' : 'text-red-600'}`}>
+                        {service.enabled ? 'Running' : 'Stopped'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
         {user?.role === Role.ADMIN &&
@@ -191,7 +213,7 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
       </div>
       <Card>
         <CardHeader className='flex flex-row justify-between gap-8 items-center '>
-          <h2 className='text-2xl'>Routes</h2>
+          <h2 className='text-2xl'>Routes:</h2>
           {edit && <Button onClick={addRoute} className='w-full md:w-auto'>
             <PlusIcon className='mr-2' /> New Route
           </Button>}

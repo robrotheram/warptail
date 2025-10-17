@@ -10,153 +10,69 @@
 
 import { createFileRoute } from '@tanstack/react-router'
 
-// Import Routes
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as R404RouteImport } from './routes/404'
+import { Route as UsersIndexRouteImport } from './routes/users/index'
 
-import { Route as rootRoute } from './routes/__root'
-import { Route as R404Import } from './routes/404'
-import { Route as UsersIndexImport } from './routes/users/index'
+const SettingsLazyRouteImport = createFileRoute('/settings')()
+const ProfileLazyRouteImport = createFileRoute('/profile')()
+const LoginLazyRouteImport = createFileRoute('/login')()
+const IndexLazyRouteImport = createFileRoute('/')()
+const RoutesIndexLazyRouteImport = createFileRoute('/routes/')()
+const RoutesServiceIndexLazyRouteImport = createFileRoute('/routes/$service/')()
+const RoutesServiceEditLazyRouteImport = createFileRoute(
+  '/routes/$service/edit',
+)()
 
-// Create Virtual Routes
-
-const SettingsLazyImport = createFileRoute('/settings')()
-const ProfileLazyImport = createFileRoute('/profile')()
-const LoginLazyImport = createFileRoute('/login')()
-const IndexLazyImport = createFileRoute('/')()
-const RoutesIndexLazyImport = createFileRoute('/routes/')()
-const RoutesServiceIndexLazyImport = createFileRoute('/routes/$service/')()
-const RoutesServiceEditLazyImport = createFileRoute('/routes/$service/edit')()
-
-// Create/Update Routes
-
-const SettingsLazyRoute = SettingsLazyImport.update({
+const SettingsLazyRoute = SettingsLazyRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/settings.lazy').then((d) => d.Route))
-
-const ProfileLazyRoute = ProfileLazyImport.update({
+const ProfileLazyRoute = ProfileLazyRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/profile.lazy').then((d) => d.Route))
-
-const LoginLazyRoute = LoginLazyImport.update({
+const LoginLazyRoute = LoginLazyRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/login.lazy').then((d) => d.Route))
-
-const R404Route = R404Import.update({
+const R404Route = R404RouteImport.update({
   id: '/404',
   path: '/404',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const IndexLazyRoute = IndexLazyImport.update({
+const IndexLazyRoute = IndexLazyRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
-
-const RoutesIndexLazyRoute = RoutesIndexLazyImport.update({
+const RoutesIndexLazyRoute = RoutesIndexLazyRouteImport.update({
   id: '/routes/',
   path: '/routes/',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/routes/index.lazy').then((d) => d.Route))
-
-const UsersIndexRoute = UsersIndexImport.update({
+const UsersIndexRoute = UsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const RoutesServiceIndexLazyRoute = RoutesServiceIndexLazyImport.update({
+const RoutesServiceIndexLazyRoute = RoutesServiceIndexLazyRouteImport.update({
   id: '/routes/$service/',
   path: '/routes/$service/',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any).lazy(() =>
   import('./routes/routes/$service/index.lazy').then((d) => d.Route),
 )
-
-const RoutesServiceEditLazyRoute = RoutesServiceEditLazyImport.update({
+const RoutesServiceEditLazyRoute = RoutesServiceEditLazyRouteImport.update({
   id: '/routes/$service/edit',
   path: '/routes/$service/edit',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any).lazy(() =>
   import('./routes/routes/$service/edit.lazy').then((d) => d.Route),
 )
-
-// Populate the FileRoutesByPath interface
-
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexLazyImport
-      parentRoute: typeof rootRoute
-    }
-    '/404': {
-      id: '/404'
-      path: '/404'
-      fullPath: '/404'
-      preLoaderRoute: typeof R404Import
-      parentRoute: typeof rootRoute
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginLazyImport
-      parentRoute: typeof rootRoute
-    }
-    '/profile': {
-      id: '/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof ProfileLazyImport
-      parentRoute: typeof rootRoute
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsLazyImport
-      parentRoute: typeof rootRoute
-    }
-    '/users/': {
-      id: '/users/'
-      path: '/users'
-      fullPath: '/users'
-      preLoaderRoute: typeof UsersIndexImport
-      parentRoute: typeof rootRoute
-    }
-    '/routes/': {
-      id: '/routes/'
-      path: '/routes'
-      fullPath: '/routes'
-      preLoaderRoute: typeof RoutesIndexLazyImport
-      parentRoute: typeof rootRoute
-    }
-    '/routes/$service/edit': {
-      id: '/routes/$service/edit'
-      path: '/routes/$service/edit'
-      fullPath: '/routes/$service/edit'
-      preLoaderRoute: typeof RoutesServiceEditLazyImport
-      parentRoute: typeof rootRoute
-    }
-    '/routes/$service/': {
-      id: '/routes/$service/'
-      path: '/routes/$service'
-      fullPath: '/routes/$service'
-      preLoaderRoute: typeof RoutesServiceIndexLazyImport
-      parentRoute: typeof rootRoute
-    }
-  }
-}
-
-// Create and export the route tree
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexLazyRoute
@@ -169,7 +85,6 @@ export interface FileRoutesByFullPath {
   '/routes/$service/edit': typeof RoutesServiceEditLazyRoute
   '/routes/$service': typeof RoutesServiceIndexLazyRoute
 }
-
 export interface FileRoutesByTo {
   '/': typeof IndexLazyRoute
   '/404': typeof R404Route
@@ -181,9 +96,8 @@ export interface FileRoutesByTo {
   '/routes/$service/edit': typeof RoutesServiceEditLazyRoute
   '/routes/$service': typeof RoutesServiceIndexLazyRoute
 }
-
 export interface FileRoutesById {
-  __root__: typeof rootRoute
+  __root__: typeof rootRouteImport
   '/': typeof IndexLazyRoute
   '/404': typeof R404Route
   '/login': typeof LoginLazyRoute
@@ -194,7 +108,6 @@ export interface FileRoutesById {
   '/routes/$service/edit': typeof RoutesServiceEditLazyRoute
   '/routes/$service/': typeof RoutesServiceIndexLazyRoute
 }
-
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
@@ -231,7 +144,6 @@ export interface FileRouteTypes {
     | '/routes/$service/'
   fileRoutesById: FileRoutesById
 }
-
 export interface RootRouteChildren {
   IndexLazyRoute: typeof IndexLazyRoute
   R404Route: typeof R404Route
@@ -242,6 +154,74 @@ export interface RootRouteChildren {
   RoutesIndexLazyRoute: typeof RoutesIndexLazyRoute
   RoutesServiceEditLazyRoute: typeof RoutesServiceEditLazyRoute
   RoutesServiceIndexLazyRoute: typeof RoutesServiceIndexLazyRoute
+}
+
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsLazyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileLazyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginLazyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/404': {
+      id: '/404'
+      path: '/404'
+      fullPath: '/404'
+      preLoaderRoute: typeof R404RouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexLazyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/': {
+      id: '/routes/'
+      path: '/routes'
+      fullPath: '/routes'
+      preLoaderRoute: typeof RoutesIndexLazyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users/': {
+      id: '/users/'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/$service/': {
+      id: '/routes/$service/'
+      path: '/routes/$service'
+      fullPath: '/routes/$service'
+      preLoaderRoute: typeof RoutesServiceIndexLazyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/$service/edit': {
+      id: '/routes/$service/edit'
+      path: '/routes/$service/edit'
+      fullPath: '/routes/$service/edit'
+      preLoaderRoute: typeof RoutesServiceEditLazyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  }
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -255,55 +235,6 @@ const rootRouteChildren: RootRouteChildren = {
   RoutesServiceEditLazyRoute: RoutesServiceEditLazyRoute,
   RoutesServiceIndexLazyRoute: RoutesServiceIndexLazyRoute,
 }
-
-export const routeTree = rootRoute
+export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-/* ROUTE_MANIFEST_START
-{
-  "routes": {
-    "__root__": {
-      "filePath": "__root.tsx",
-      "children": [
-        "/",
-        "/404",
-        "/login",
-        "/profile",
-        "/settings",
-        "/users/",
-        "/routes/",
-        "/routes/$service/edit",
-        "/routes/$service/"
-      ]
-    },
-    "/": {
-      "filePath": "index.lazy.tsx"
-    },
-    "/404": {
-      "filePath": "404.tsx"
-    },
-    "/login": {
-      "filePath": "login.lazy.tsx"
-    },
-    "/profile": {
-      "filePath": "profile.lazy.tsx"
-    },
-    "/settings": {
-      "filePath": "settings.lazy.tsx"
-    },
-    "/users/": {
-      "filePath": "users/index.tsx"
-    },
-    "/routes/": {
-      "filePath": "routes/index.lazy.tsx"
-    },
-    "/routes/$service/edit": {
-      "filePath": "routes/$service/edit.lazy.tsx"
-    },
-    "/routes/$service/": {
-      "filePath": "routes/$service/index.lazy.tsx"
-    }
-  }
-}
-ROUTE_MANIFEST_END */

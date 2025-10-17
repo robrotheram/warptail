@@ -53,7 +53,7 @@ export const RouteStatusCard = ({ route }: RouteCardProps) => {
           variant={
             route?.status === RouterStatus.RUNNING ? 'default' : 'destructive'
           }
-          className="text-xs px-2 py-1 flex justify-center"
+          className={`text-xs px-2 py-1 flex justify-center ${route?.status === RouterStatus.RUNNING ? 'bg-green-700' : 'bg-red-700'}`}
         >
           {route?.status}
         </Badge>
