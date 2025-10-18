@@ -68,7 +68,7 @@ func NewBotChallenge(mux *chi.Mux, config utils.AuthenticationConfig) *BotChalle
 		tmpl:           template.Must(template.New("challenge").Parse(string(challengeHtml))),
 	}
 
-	bc.sessionStore = sessions.NewCookieStore([]byte(config.Secret))
+	bc.sessionStore = sessions.NewCookieStore([]byte(config.SessionSecret))
 	bc.sessionStore.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   0,

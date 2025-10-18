@@ -28,30 +28,34 @@ type OpenIDAuth struct {
 	secretKey    string
 }
 
-func NewOpenIdProvider(config utils.AuthenticationProvider, sessionStore *sessions.CookieStore, users *Users) (*OpenIDAuth, error) {
+func NewOpenIdProvider(config utils.AuthenticationConfig, sessionStore *sessions.CookieStore, users *Users) (*OpenIDAuth, error) {
+
+	if config.Provider.OIDC == nil {
+		return nil, fmt.Errorf("OIDC configuration is missing")
+	}
 
 	redirectURL, _ := url.JoinPath(config.BaseURL, "/auth/callback")
 
-	provider, err := oidc.NewProvider(context.Background(), config.ProviderURL)
+	provider, err := oidc.NewProvider(context.Background(), config.Provider.OIDC.IssuerURL)
 	if err != nil {
 		return nil, err
 	}
 
 	// Configure OAuth2
 	oauth2Config := &oauth2.Config{
-		ClientID:    config.ClientID,
+		ClientID:    config.Provider.OIDC.ClientID,
 		Endpoint:    provider.Endpoint(),
 		RedirectURL: redirectURL,
 		Scopes:      []string{oidc.ScopeOpenID, "profile", "email"},
 	}
 
 	auth := OpenIDAuth{
-		clientId:     config.ClientID,
+		clientId:     config.Provider.OIDC.ClientID,
+		secretKey:    config.SessionSecret,
 		sessionStore: sessionStore,
 		users:        users,
 		provider:     provider,
 		oauth2Config: oauth2Config,
-		secretKey:    config.Secret,
 	}
 
 	return &auth, nil
@@ -122,7 +126,7 @@ func (auth *OpenIDAuth) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse claims and save in session
-	var claims map[string]interface{}
+	var claims map[string]any
 	if err := idToken.Claims(&claims); err != nil {
 		http.Error(w, "Failed to parse ID token claims: "+err.Error(), http.StatusInternalServerError)
 		return

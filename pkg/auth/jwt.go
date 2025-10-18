@@ -17,9 +17,9 @@ type JWTAuth struct {
 	users        *Users
 }
 
-func NewJWTAuthProvider(config utils.AuthenticationProvider, sessionStore *sessions.CookieStore, users *Users) (*JWTAuth, error) {
+func NewJWTAuthProvider(config utils.AuthenticationConfig, sessionStore *sessions.CookieStore, users *Users) (*JWTAuth, error) {
 	return &JWTAuth{
-		secretKey:    config.Secret,
+		secretKey:    config.SessionSecret,
 		sessionStore: sessionStore,
 		users:        users,
 	}, nil
@@ -37,10 +37,12 @@ func (auth *JWTAuth) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := auth.users.FindByEamil(loginData.Username, r.Context())
+	user, err := auth.users.FindByUsername(loginData.Username, r.Context())
 	if err != nil {
-		http.Error(w, "Authentication failed", http.StatusUnauthorized)
-		return
+		if user, err = auth.users.FindByEamil(loginData.Username, r.Context()); err != nil {
+			http.Error(w, "Authentication failed", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	// Example: Replace this with your actual authentication logic

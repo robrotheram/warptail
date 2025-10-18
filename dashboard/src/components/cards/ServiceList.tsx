@@ -1,6 +1,5 @@
-
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { createService, CreateService, getServices } from '@/lib/api'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -18,7 +17,7 @@ export const CreateServiceModel = () => {
     onSuccess: (data) => { navigate({ to: `/routes/${data.id}/edit` }) },
   })
 
-  const [service, setService] = useState<CreateService>({name: "",routes: []});
+  const [service, setService] = useState<CreateService>({ name: "", routes: [] });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -42,7 +41,7 @@ export const CreateServiceModel = () => {
           onChange={handleInputChange}
           placeholder='Service Name'
         />
-        <Button  type="submit" onClick={() => { create.mutate(service) }} disabled={service.name.length === 0 }>
+        <Button type="submit" onClick={() => { create.mutate(service) }} disabled={service.name.length === 0}>
           <Plus className="mr-2 h-4 w-4" /> Create
         </Button>
       </div>
@@ -51,38 +50,72 @@ export const CreateServiceModel = () => {
 }
 
 type RouteListProps = {
-  read_only:boolean
+  read_only: boolean
 }
-export const RouteList = ({read_only}:RouteListProps) => {
-    const navigate = useNavigate({ from: '/' })
-    const { data } = useQuery({
-      queryKey: ['repoData'],
-      queryFn: getServices,
-    })
-    
-    return <Card className="container mx-auto p-2 space-y-6">
-        <CardHeader className='flex flex-row justify-between'>
-          <div className='space-y-1.5 flex flex-col'>
-            <CardTitle>Services</CardTitle>
-            <CardDescription>Manage your load balancer routes.</CardDescription>
-          </div>
-          {!read_only &&<CreateServiceModel />}
+export const RouteList = ({ read_only }: RouteListProps) => {
+  const navigate = useNavigate({ from: '/' })
+  const { data, isError, error } = useQuery({
+    queryKey: ['repoData'],
+    queryFn: getServices,
+  })
+
+  // Check if data is empty and error indicates authentication needed
+  const needsTailscaleAuth = !data || (data.length === 0 && (
+    isError && (
+      error?.message?.includes('NeedsLogin') ||
+      error?.message?.includes('offline') ||
+      error?.message?.includes('Authentication failed')
+    )
+  ))
+
+  if (needsTailscaleAuth) {
+    return (
+      <Card className="container mx-auto p-2 space-y-6">
+        <CardHeader>
+          <CardTitle className='text-3xl text-center font-semibold text-red-600'>Tailscale Authentication Required</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Service Name</TableHead>
-                <TableHead>Average Latency</TableHead>
-                <TableHead>Enabled</TableHead>
-              </TableRow>
-            </TableHeader>
-            {data &&
-            <TableBody>
-              {
-                data.sort((a, b) => {
+        <CardContent className='text-center'>
+          <p className="text-muted-foreground mx-auto">
+            The Tailscale client needs to be authenticated to access network services.
+            Please authenticate your Tailscale client to continue.
+          </p>
+        </CardContent>
+        <CardFooter className='flex justify-center'>
+        <Button
+          onClick={() => navigate({ to: '/settings', search: { tab: 'logs' } })}
+          variant="destructive"
+        >
+          View Logs & Settings
+        </Button>
+        </CardFooter>
+      </Card>
+    )
+  }
+  return <Card className="container mx-auto p-2 space-y-6">
+    <CardHeader className='flex flex-row justify-between'>
+      <div className='space-y-1.5 flex flex-col'>
+        <CardTitle>Services</CardTitle>
+        <CardDescription>Manage your load balancer routes.</CardDescription>
+      </div>
+      {!read_only && !needsTailscaleAuth && <CreateServiceModel />}
+    </CardHeader>
+    <CardContent>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Service Name</TableHead>
+            <TableHead>Average Latency</TableHead>
+            <TableHead>Enabled</TableHead>
+          </TableRow>
+        </TableHeader>
+        {data &&
+          <TableBody>
+            {
+              (() => {
+                const sorted = [...data].sort((a, b) => {
                   return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-                }).map(svc => {
+                });
+                return sorted.map(svc => {
                   return <TableRow onClick={() => navigate({ to: `/routes/${svc.id}` })} className='cursor-pointer' key={svc.id}>
                     <TableCell className="font-medium">{svc.name}</TableCell>
                     <TableCell>
@@ -92,10 +125,12 @@ export const RouteList = ({read_only}:RouteListProps) => {
                       <Badge variant={`${svc.enabled ? "default" : "destructive"}`}>{`${svc.enabled ? "Active" : "Inactive"}`}</Badge>
                     </TableCell>
                   </TableRow>
-                })}
-            </TableBody>
+                });
+              })()
+            }
+          </TableBody>
+        }
+      </Table>
+    </CardContent>
+  </Card>
 }
-          </Table>
-        </CardContent>
-      </Card>
-  }

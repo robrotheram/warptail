@@ -64,11 +64,6 @@ check_os() {
     print_success "Detected OS: $PRETTY_NAME"
 }
 
-update_system() {
-    print_status "Updating system packages..."
-    sudo apt update && sudo apt upgrade -y
-    sudo apt install -y curl wget git unzip build-essential
-}
 
 create_user() {
     if id "$WARPTAIL_USER" &>/dev/null; then
@@ -98,7 +93,7 @@ install_warptail() {
     print_status "Downloading WarpTail version: $LATEST_VERSION"
     
     # Download binary
-    DOWNLOAD_URL="https://github.com/robrotheram/warptail/releases/download/${LATEST_VERSION}/warptail-linux-amd64"
+    DOWNLOAD_URL="https://github.com/robrotheram/warptail/releases/download/${LATEST_VERSION}/warptail-amd64"
     
     if ! wget -q "$DOWNLOAD_URL" -O warptail-linux-amd64; then
         print_error "Failed to download WarpTail binary"
@@ -129,12 +124,11 @@ application:
   port: 8080
   authentication:
     baseURL: "http://localhost:8080"
-    secretKey: "$(openssl rand -base64 32)"
+    session_secret: "$(openssl rand -base64 32)"
     provider:
-      name: "WarpTail Admin"
-      type: "password"
-      session_secret: "$RANDOM_PASSWORD"
-
+      basic:
+        email: "admin@warptail.local"
+        password: "$RANDOM_PASSWORD"    
 logging:
   format: "json"
   level: "info"
@@ -142,7 +136,8 @@ logging:
   path: "$LOG_DIR"
 
 database:
-  path: "$WARPTAIL_HOME/warptail.db"
+  connection_type: sqlite
+  connection: file:$WARPTAIL_HOME/warptail.db?cache=shared
 
 services: []
 EOF
@@ -280,7 +275,6 @@ main() {
     
     print_status "Starting WarpTail installation..."
     
-    update_system
     create_user
     install_warptail
     create_config

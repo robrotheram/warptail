@@ -44,6 +44,8 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
     queryKey: ['route', id],
     retry: false,
     queryFn: () => getService(id),
+    refetchInterval: 5000, // Poll every 5 seconds
+    refetchIntervalInBackground: true, // Continue polling when tab is not active
   })
   const [service, setService] = useState<Service | null>(null);
   useEffect(() => {
@@ -57,6 +59,8 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
     mutationFn: service?.enabled ? stopService : startService,
     onSuccess: (svc) => {
       queryClient.setQueryData(['route', svc.id], svc)
+      // Invalidate and refetch to get updated route status
+      queryClient.invalidateQueries({ queryKey: ['route', svc.id] })
     },
   })
 

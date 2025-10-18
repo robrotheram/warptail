@@ -15,11 +15,11 @@ type Users struct {
 	db *bun.DB
 }
 
-func NewUserStore(db *bun.DB) *Users {
+func NewUserStore(db *bun.DB, config *utils.BasicProvider) *Users {
 	store := Users{
 		db: db,
 	}
-	store.CreateAdminUser()
+	store.CreateAdminUser(config)
 	return &store
 }
 
@@ -30,6 +30,7 @@ const USER = Role("user")
 
 type User struct {
 	ID            uuid.UUID `bun:"id,type:uuid,pk,notnull" json:"id"`
+	Username      string    `bun:",notnull" json:"username,omitempty"`
 	Name          string    `bun:",notnull" json:"name"`
 	Email         string    `bun:",notnull" json:"email"`
 	Password      string    `bun:",notnull" json:"password,omitempty"`
@@ -106,6 +107,12 @@ func (store *Users) Create(user User, ctx context.Context) error {
 	return nil
 }
 
+func (store *Users) FindByUsername(username string, ctx context.Context) (User, error) {
+	var user User
+	err := store.db.NewSelect().Model(&user).Where("username = ?", username).Scan(context.Background())
+	return user, err
+}
+
 func (store *Users) FindByEamil(email string, ctx context.Context) (User, error) {
 	var user User
 	err := store.db.NewSelect().Model(&user).Where("email = ?", email).Scan(context.Background())
@@ -118,21 +125,22 @@ func (store *Users) FindByID(id string, ctx context.Context) (User, error) {
 	return user, err
 }
 
-func (store *Users) CreateAdminUser() error {
-	password := generatePassword(20, 2, 2, 2)
+func (store *Users) CreateAdminUser(config *utils.BasicProvider) error {
 	admin := User{
 		ID:       uuid.New(),
-		Name:     "admin",
-		Email:    "admin@warptail.local",
+		Username: "admin",
+		Name:     "WarpTail Admin",
+		Email:    config.Email,
+		Type:     "internal",
 		Role:     ADMIN,
-		Password: password,
+		Password: config.Password,
 	}
 
 	_, err := store.FindByEamil(admin.Email, context.Background())
 	if err == nil {
 		return nil
 	}
-	utils.Logger.Info("New admin user created password", "password", password)
+	utils.Logger.Info("New admin user created password", "password", config.Password)
 	admin.HashPassword()
 	_, err = store.db.NewInsert().Model(&admin).Exec(context.Background())
 	return err

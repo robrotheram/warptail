@@ -33,30 +33,24 @@ func NewAuthentication(mux *chi.Mux, db *bun.DB, config utils.AuthenticationConf
 		baseUrl: config.BaseURL,
 	}
 
-	providerConfig := config.Provider
-	providerConfig.BaseURL = config.BaseURL
-	providerConfig.Secret = config.Secret
-
-	auth.sessionStore = sessions.NewCookieStore([]byte(config.Secret))
+	auth.sessionStore = sessions.NewCookieStore([]byte(config.SessionSecret))
 	auth.sessionStore.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   0,
 		HttpOnly: true,
 		Secure:   false,
 	}
-	auth.users = NewUserStore(db)
+	auth.users = NewUserStore(db, config.Provider.Basic)
 
-	if provider, err := NewOpenIdProvider(providerConfig, auth.sessionStore, auth.users); err == nil {
+	if provider, err := NewOpenIdProvider(config, auth.sessionStore, auth.users); err == nil {
 		auth.OICDProvider = provider
 		mux.HandleFunc("/auth/callback", auth.OICDProvider.Callback)
 	}
-	// else {
-	// 	utils.Logger.Error(err, "unable to create oidc")
-	// }
 
-	if provider, err := NewJWTAuthProvider(providerConfig, auth.sessionStore, auth.users); err == nil {
+	if provider, err := NewJWTAuthProvider(config, auth.sessionStore, auth.users); err == nil {
 		auth.JWTProvider = provider
 	}
+
 	mux.HandleFunc("/auth/login", auth.Login)
 	mux.HandleFunc("/auth/logout", auth.Logout)
 	mux.HandleFunc("/auth/profile", auth.HandleGetProfile)
@@ -121,7 +115,14 @@ func (auth *Authentication) GetUser(w http.ResponseWriter, r *http.Request) (Use
 	if !ok {
 		token = r.Header.Get("Authorization")
 	}
+
+	// Try decoding with JWT provider secret key first
 	identifier, tokenType, err := DecodeToken(token, auth.JWTProvider.secretKey)
+	if err != nil && auth.OICDProvider != nil {
+		// If JWT decoding fails and OIDC provider exists, try with OIDC secret key
+		identifier, tokenType, err = DecodeToken(token, auth.OICDProvider.secretKey)
+	}
+
 	if err != nil {
 		session.Options.MaxAge = -1
 		session.Save(r, w)

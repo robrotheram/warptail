@@ -8,7 +8,7 @@ import ProtectedRoute from '@/Protected'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLazyFileRoute } from '@tanstack/react-router'
 import { Save, Edit, Activity, Loader2, Key, Clock, ArrowUp, ArrowDown, ArrowUpDown, Terminal, CogIcon, TerminalIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -25,7 +25,7 @@ const TailScaleForm = () => {
   })
 
   const [editMode, setEditMode] = useState(false)
-  const [hasAuthKey, setHasAutKey] = useState(data?.AuthKey !== "")
+  const [hasAuthKey, setHasAuthKey] = useState<boolean>(() => !!data?.AuthKey)
   const { read_only } = useConfig()
   const [editedRoute, setEditedRoute] = useState<Tailsale>(data!)
   const queryClient = useQueryClient()
@@ -78,7 +78,7 @@ const TailScaleForm = () => {
           </div>
           <div className="flex items-center space-x-2">
             <Label htmlFor="airplane-mode">Use AuthKey: </Label>
-            <Switch id="airplane-mode" checked={hasAuthKey} onCheckedChange={setHasAutKey} disabled={!editMode} />
+            <Switch id="airplane-mode" checked={hasAuthKey} onCheckedChange={setHasAuthKey} disabled={!editMode} />
           </div>
           {data?.AuthKey || hasAuthKey && (
             <div className="flex flex-col gap-2">
@@ -154,7 +154,14 @@ const TailScaleKeyCard = ({ key_expiry }: TailScaleKeyCardProps) => {
   const daysUntilExpiry = key_expiry ? calculateDaysUntilExpiry(new Date(key_expiry)) : 0
   const expiryStatusColor = getExpiryStatusColor(daysUntilExpiry)
 
-  const expiryStatusText = key_expiry === null ? "No Expiry" : daysUntilExpiry > 0 ? `${daysUntilExpiry} days` : "Key Expired"
+  let expiryStatusText = ""
+  if (key_expiry === null) {
+    expiryStatusText = "No Expiry"
+  } else if (daysUntilExpiry > 0) {
+    expiryStatusText = `${daysUntilExpiry} days`
+  } else {
+    expiryStatusText = "Key Expired"
+  }
   return <Card>
     <CardHeader className="pb-2">
       <CardTitle className="text-sm font-medium">Key Expiry</CardTitle>
@@ -342,6 +349,20 @@ const SettingComponent = () => {
     queryFn: getTSSTATUS,
   })
 
+  // Get the tab parameter from URL search params
+  const searchParams = new URLSearchParams(window.location.search)
+  const tabParam = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState(tabParam || 'table')
+
+  // Update active tab when URL changes
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const tab = urlParams.get('tab')
+    if (tab) {
+      setActiveTab(tab)
+    }
+  }, [])
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -388,7 +409,7 @@ const SettingComponent = () => {
           </CardContent>
         </Card>
       </div>
-      <Tabs defaultValue="table">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="table">List Nodes</TabsTrigger>
           <TabsTrigger value="logs"><TerminalIcon className='h-4' /> Logs</TabsTrigger>

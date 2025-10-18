@@ -60,10 +60,6 @@ func ApplicationCmd(ctx context.Context, cmd *cli.Command) error {
 	}
 	router := router.NewRouter()
 	go router.Init(config)
-	if err != nil {
-		return err
-	}
-	// router.GetTailScaleStatus()
 
 	if utils.IsEmptyStruct(config.Kubernetes) {
 		utils.Logger.Info("Starting Server")

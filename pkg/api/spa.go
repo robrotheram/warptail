@@ -24,17 +24,22 @@ type SPAHandler struct {
 }
 
 func NewUI(config utils.Config, ui embed.FS) SPAHandler {
+	cfg := UIConfig{
+		ReadOnly: !utils.IsEmptyStruct(config.Kubernetes),
+		SiteName: config.Application.SiteName,
+		SiteLogo: config.Application.SiteLogo,
+	}
+
+	if config.Application.Authentication.Provider.OIDC != nil {
+		cfg.AuthenticationType = "openid"
+		cfg.AuthenticationName = config.Application.Authentication.Provider.OIDC.Name
+	}
+
 	spa := SPAHandler{
 		StaticFs:   ui,
 		StaticPath: "dashboard/dist",
 		IndexPath:  "index.html",
-		Config: UIConfig{
-			AuthenticationType: config.Application.Authentication.Provider.Type,
-			AuthenticationName: config.Application.Authentication.Provider.Name,
-			ReadOnly:           !utils.IsEmptyStruct(config.Kubernetes),
-			SiteName:           config.Application.SiteName,
-			SiteLogo:           config.Application.SiteLogo,
-		},
+		Config:     cfg,
 	}
 	return spa
 }

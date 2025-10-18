@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"warptail/pkg/utils/logs"
 
@@ -90,9 +91,10 @@ func setupLogger(logCfg LoggingConfig) {
 	writers = append(writers, zapcore.AddSync(LogBuffer)) // Add in-memory buffer
 
 	if logCfg.Output != DefaultLogOutput {
-		file, err := os.OpenFile(logCfg.Output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		path := filepath.Join(logCfg.Path, "warptail.log")
+		file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			log.Fatalf("Failed to open log file %s: %v", logCfg.Output, err)
+			log.Fatalf("Failed to open log file %s: %v", path, err)
 		}
 		writers = append(writers, zapcore.AddSync(file))
 	} else {

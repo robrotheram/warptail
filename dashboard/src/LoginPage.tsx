@@ -3,13 +3,12 @@ import { useAuth } from './context/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { Button , buttonVariants} from '@/components/ui/button'
 import { useMutation } from '@tanstack/react-query'
 import { login as api, AUTH_URL, getProfile, Login, Role } from "./lib/api"
 import { useNavigate } from '@tanstack/react-router'
 import { AlertCircle, Fingerprint } from 'lucide-react'
 import { Alert, AlertTitle, AlertDescription } from './components/ui/alert'
-import { buttonVariants } from "@/components/ui/button"
 import { useConfig } from './context/ConfigContext'
 
 
