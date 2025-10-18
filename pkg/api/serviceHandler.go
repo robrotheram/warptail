@@ -16,12 +16,12 @@ func (api *api) handleGetRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if we have no services and if Tailscale needs authentication
-	if len(status) == 0 {
-		if err := api.checkTailscaleAuth(); err != nil {
-			utils.WriteErrorResponse(w, utils.BadReqError("NeedsLogin: "+err.Error()))
-			return
-		}
-	}
+	// if len(status) == 0 {
+	// 	if err := api.checkTailscaleAuth(); err != nil {
+	// 		utils.WriteErrorResponse(w, utils.BadReqError("NeedsLogin: "+err.Error()))
+	// 		return
+	// 	}
+	// }
 
 	utils.WriteData(w, status)
 }
