@@ -116,7 +116,7 @@ create_config() {
     
     sudo tee "$CONFIG_DIR/config.yaml" > /dev/null <<EOF
 tailscale:
-  auth_key: "YOUR_TAILSCALE_AUTH_KEY"
+  auth_key: ""
   hostname: "warptail-proxy"
 
 application:

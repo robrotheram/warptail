@@ -3,24 +3,27 @@ import { useEffect, useRef } from "react";
 import "./logviewer.scss"
 
 export const LogViewer = ({ logs }: { logs: string[] }) => {
-    const bottomRef = useRef<null | HTMLTableElement>(null);
+    const bottomRef = useRef<null | HTMLDivElement>(null);
+    
     useEffect(() => {
         bottomRef.current?.scrollIntoView({behavior: 'smooth'});
-      }, [logs]);
-  return (
-    <div className="h-[400px] overflow-y-auto noScrollbar">
-        <table className="min-w-full divide-y">
-          <tbody className=" divide-y">
-            {logs.map((log, index) => (
-              <tr key={index}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <AnsiHtml text={log}/>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div ref={bottomRef} />
-      </div>
-  )
+    }, [logs]);
+    
+    // Process logs to ensure proper line breaks
+    const processedLogs = logs.map(log => 
+        log.split('\n').filter(line => line.trim() !== '')
+    ).flat();
+    
+    return (
+        <div className="h-[400px] overflow-y-auto noScrollbar font-mono text-sm">
+            <div className="space-y-1 p-4">
+                {processedLogs.map((log, index) => (
+                    <div key={index} className="whitespace-pre-wrap break-words">
+                        <AnsiHtml text={log} />
+                    </div>
+                ))}
+            </div>
+            <div ref={bottomRef} />
+        </div>
+    )
 }
