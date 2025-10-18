@@ -111,6 +111,22 @@ install_warptail() {
 create_config() {
     print_status "Creating configuration file..."
     
+    # Check if config file already exists
+    if [[ -f "$CONFIG_DIR/config.yaml" ]]; then
+        print_warning "Configuration file already exists: $CONFIG_DIR/config.yaml"
+        echo -n "Do you want to override it? (y/N): "
+        read -r response
+        case "$response" in
+            [yY][eE][sS]|[yY])
+                print_status "Overriding existing configuration..."
+                ;;
+            *)
+                print_status "Keeping existing configuration file"
+                return 0
+                ;;
+        esac
+    fi
+    
     # Generate a random password
     RANDOM_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
     
