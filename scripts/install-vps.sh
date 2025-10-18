@@ -114,17 +114,8 @@ create_config() {
     # Check if config file already exists
     if [[ -f "$CONFIG_DIR/config.yaml" ]]; then
         print_warning "Configuration file already exists: $CONFIG_DIR/config.yaml"
-        echo -n "Do you want to override it? (y/N): "
-        read -r response
-        case "$response" in
-            [yY][eE][sS]|[yY])
-                print_status "Overriding existing configuration..."
-                ;;
-            *)
-                print_status "Keeping existing configuration file"
-                return 0
-                ;;
-        esac
+        print_status "Keeping existing configuration file"
+        return 0
     fi
     
     # Generate a random password
