@@ -12,10 +12,10 @@ type ACMEController struct {
 	domains []string
 }
 
-func NewACMEContoller(manager *autocert.Manager, cfg utils.ApplicationConfig) *ACMEController {
+func NewACMEContoller(manager *autocert.Manager, cfg utils.CertificateManagerConfig) *ACMEController {
 	return &ACMEController{
 		manager: manager,
-		domains: []string{cfg.Acme.PortalDomain},
+		domains: []string{cfg.PortalDomain},
 	}
 }
 

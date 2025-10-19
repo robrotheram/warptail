@@ -3,7 +3,6 @@ package utils
 import (
 	"context"
 	"crypto/md5"
-	"fmt"
 	"log"
 	"os"
 	"reflect"
@@ -14,72 +13,24 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type OIDCProvider struct {
-	Name         string `yaml:"name"`
-	ClientID     string `yaml:"client_id"`
-	ClientSecret string `yaml:"client_secret"`
-	IssuerURL    string `yaml:"issuer_url"`
-	RedirectURL  string `yaml:"redirect_url,omitempty"`
-}
-
-func (oidc *OIDCProvider) validate() error {
-	if oidc.ClientID == "" {
-		return fmt.Errorf("client_id is required for OIDC provider")
-	}
-	if oidc.IssuerURL == "" {
-		return fmt.Errorf("issuer_url is required for OIDC provider")
-	}
-	return nil
-}
-
-type BasicProvider struct {
-	Email    string `yaml:"email,omitempty"`
-	Password string `yaml:"password"`
-}
-
-func (basic *BasicProvider) validate() error {
-	if basic.Email == "" {
-		return fmt.Errorf("email is required for basic provider")
-	}
-	if basic.Password == "" {
-		return fmt.Errorf("password is required for basic provider")
-	}
-	return nil
-}
-
-type AuthenticationProvider struct {
-	OIDC  *OIDCProvider  `yaml:"oidc,omitempty"`
-	Basic *BasicProvider `yaml:"basic,omitempty"`
-}
-
-func (provider *AuthenticationProvider) validate() error {
-	if provider.OIDC != nil {
-		return provider.OIDC.validate()
-	}
-	if provider.Basic != nil {
-		return provider.Basic.validate()
-	}
-	return fmt.Errorf("no valid authentication provider configured")
-}
-
-type AuthenticationConfig struct {
-	BaseURL       string                 `yaml:"baseURL"`
-	SessionSecret string                 `yaml:"session_secret"`
-	Provider      AuthenticationProvider `yaml:"provider"`
-}
-
 type TailscaleConfig struct {
 	AuthKey  string `yaml:"auth_key"`
 	Hostname string `yaml:"hostnmae"`
 }
 
 type Config struct {
-	Tailscale   TailscaleConfig   `yaml:"tailscale"`
-	Database    DatabaseConfig    `yaml:"database"`
-	Application ApplicationConfig `yaml:"application"`
-	Kubernetes  KubernetesConfig  `yaml:"kubernetes,omitempty"`
-	Services    []ServiceConfig   `yaml:"services"`
-	Logging     LoggingConfig     `yaml:"logging"`
+	Tailscale          TailscaleConfig          `yaml:"tailscale"`
+	Database           DatabaseConfig           `yaml:"database"`
+	Application        ApplicationConfig        `yaml:"application"`
+	Authentication     AuthenticationConfig     `yaml:"authentication"`
+	CertificateManager CertificateManagerConfig `yaml:"acme,omitempty"`
+	Kubernetes         KubernetesConfig         `yaml:"kubernetes,omitempty"`
+	Services           []ServiceConfig          `yaml:"services"`
+	Logging            LoggingConfig            `yaml:"logging"`
+}
+
+func (app *Config) UseHTTPS() bool {
+	return !IsEmptyStruct(app.CertificateManager) && app.CertificateManager.Enabled
 }
 
 var ConfigPath = os.Getenv("CONFIG_PATH")
@@ -129,7 +80,7 @@ func (config *Config) validate() error {
 		}
 	}
 
-	if err := config.Application.Authentication.Provider.validate(); err != nil {
+	if err := config.Authentication.Provider.validate(); err != nil {
 		return err
 	}
 

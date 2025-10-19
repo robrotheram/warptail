@@ -30,9 +30,9 @@ func NewUI(config utils.Config, ui embed.FS) SPAHandler {
 		SiteLogo: config.Application.SiteLogo,
 	}
 
-	if config.Application.Authentication.Provider.OIDC != nil {
+	if config.Authentication.Provider.OIDC != nil {
 		cfg.AuthenticationType = "openid"
-		cfg.AuthenticationName = config.Application.Authentication.Provider.OIDC.Name
+		cfg.AuthenticationName = config.Authentication.Provider.OIDC.Name
 	}
 
 	spa := SPAHandler{

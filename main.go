@@ -91,17 +91,17 @@ func StartRouter(cfg utils.Config, rt *router.Router) error {
 		rt.Controllers = append(rt.Controllers, ctrl)
 	}
 
-	if cfg.Application.UseHTTPS() {
+	if cfg.UseHTTPS() {
 		utils.Logger.Info("Certificates Managed by ACME")
-		manager := cfg.Application.ACMEManager()
-		rt.Controllers = append(rt.Controllers, controller.NewACMEContoller(manager, cfg.Application))
+		manager := cfg.CertificateManager.ACMEManager()
+		rt.Controllers = append(rt.Controllers, controller.NewACMEContoller(manager, cfg.CertificateManager))
 		go func() {
 			err := http.ListenAndServe(":80", manager.HTTPHandler(mux))
 			log.Fatal(err)
 		}()
 
 		srv := &http.Server{
-			Addr:    cfg.Application.GetSSLAddr(),
+			Addr:    cfg.CertificateManager.GetSSLAddr(),
 			Handler: mux,
 			TLSConfig: &tls.Config{
 				GetCertificate:           manager.GetCertificate,

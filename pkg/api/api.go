@@ -47,8 +47,8 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 		AllowedHeaders:  []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 	}))
 
-	api.authentication = auth.NewAuthentication(mux, db, config.Application.Authentication)
-	api.botProtect = botprotect.NewBotChallenge(mux, config.Application.Authentication)
+	api.authentication = auth.NewAuthentication(mux, db, config.Authentication)
+	api.botProtect = botprotect.NewBotChallenge(mux, config.Authentication)
 
 	mux.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

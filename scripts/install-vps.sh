@@ -118,6 +118,13 @@ create_config() {
         return 0
     fi
     
+    # Get server's public IPv4 address
+    IPV4_ADDRESS=$(curl -s https://ifconfig.me)
+    if [[ -z "$IPV4_ADDRESS" ]]; then
+        print_error "Failed to retrieve public IPv4 address"
+        IPV4_ADDRESS="localhost"
+    fi
+
     # Generate a random password
     RANDOM_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
     
@@ -127,24 +134,32 @@ tailscale:
   hostname: "warptail-proxy"
 
 application:
-  host: "0.0.0.0"
-  port: 8080
-  authentication:
-    baseURL: "http://localhost:8080"
+    host: "0.0.0.0"
+    port: 80
+
+authentication:
+    baseURL: "http://$IPV4_ADDRESS"
     session_secret: "$(openssl rand -base64 32)"
     provider:
-      basic:
+        basic:
         email: "admin@warptail.local"
         password: "$RANDOM_PASSWORD"    
+        
+acme:
+    enabled: true
+    ssl_port: 443
+    certificates_dir: "$WARPTAIL_HOME/certs"
+    portal_domain: "your-domain.com"
+
 logging:
-  format: "json"
-  level: "info"
-  output: "file"
-  path: "$LOG_DIR"
+    format: "json"
+    level: "info"
+    output: "file"
+    path: "$LOG_DIR"
 
 database:
-  connection_type: sqlite
-  connection: file:$WARPTAIL_HOME/warptail.db?cache=shared
+    connection_type: sqlite
+    connection: file:$WARPTAIL_HOME/warptail.db?cache=shared
 
 services: []
 EOF
