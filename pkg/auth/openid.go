@@ -175,10 +175,21 @@ func (auth *OpenIDAuth) createUser(ctx context.Context, oauth2Token *oauth2.Toke
 	if err := userInfo.Claims(&profile); err != nil {
 		return err
 	}
+
+	name, ok := profile["name"].(string)
+	if !ok {
+		name = "Unknown User"
+	}
+
+	email, ok := profile["email"].(string)
+	if !ok {
+		return fmt.Errorf("email not found in profile")
+	}
+
 	user := User{
 		ID:    uuid.New(),
-		Name:  profile["name"].(string),
-		Email: profile["email"].(string),
+		Name:  name,
+		Email: email,
 		Type:  "openid",
 		Role:  ADMIN,
 	}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"warptail/pkg/router"
 	"warptail/pkg/utils"
@@ -10,20 +11,37 @@ import (
 )
 
 func (api *api) handleGetRoutes(w http.ResponseWriter, r *http.Request) {
+	if api.Router == nil {
+		utils.WriteErrorResponse(w, utils.BadReqError("Router not initialized"))
+		return
+	}
+
 	status := []router.ServiceStatus{}
 	for _, svc := range api.All() {
 		status = append(status, svc.Status(false))
 	}
 
 	// Check if we have no services and if Tailscale needs authentication
-	// if len(status) == 0 {
-	// 	if err := api.checkTailscaleAuth(); err != nil {
-	// 		utils.WriteErrorResponse(w, utils.BadReqError("NeedsLogin: "+err.Error()))
-	// 		return
-	// 	}
-	// }
+	if len(status) == 0 {
+		if err := api.checkTailscaleAuth(); err != nil && err.Error() != "" {
+			utils.WriteErrorResponse(w, utils.BadReqError("NeedsLogin: "+err.Error()))
+			return
+		}
+	}
 
 	utils.WriteData(w, status)
+}
+
+func (api *api) checkTailscaleAuth() error {
+	if api.Router == nil {
+		return fmt.Errorf("router not initialized")
+	}
+	peers, err := api.Router.GetPeers()
+	// Ensure we return a proper nil, not a typed nil
+	if err != nil || len(peers) == 0 {
+		return fmt.Errorf("no peers")
+	}
+	return nil
 }
 
 func (api *api) handleGetRoute(w http.ResponseWriter, r *http.Request) {
@@ -60,12 +78,6 @@ func (api *api) handleGetTailscaleNodes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	utils.WriteData(w, nodes)
-}
-
-// Helper function to check if Tailscale needs authentication
-func (api *api) checkTailscaleAuth() error {
-	_, err := api.Router.GetPeers()
-	return err
 }
 
 // Helper function to determine if an error is authentication-related

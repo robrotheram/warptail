@@ -71,9 +71,17 @@ func ParseUrlFromRequest(r *http.Request) string {
 
 func (auth *Authentication) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
-		auth.OICDProvider.Login(w, r)
+		if auth.OICDProvider != nil {
+			auth.OICDProvider.Login(w, r)
+		} else {
+			http.Error(w, "OIDC provider not configured", http.StatusNotImplemented)
+		}
 	} else {
-		auth.JWTProvider.Login(w, r)
+		if auth.JWTProvider != nil {
+			auth.JWTProvider.Login(w, r)
+		} else {
+			http.Error(w, "JWT provider not configured", http.StatusNotImplemented)
+		}
 	}
 }
 
@@ -116,6 +124,10 @@ func (auth *Authentication) GetUser(w http.ResponseWriter, r *http.Request) (Use
 		token = r.Header.Get("Authorization")
 	}
 
+	if auth.JWTProvider == nil {
+		return user, fmt.Errorf("no JWT provider configured")
+	}
+
 	// Try decoding with JWT provider secret key first
 	identifier, tokenType, err := DecodeToken(token, auth.JWTProvider.secretKey)
 	if err != nil && auth.OICDProvider != nil {
@@ -130,8 +142,14 @@ func (auth *Authentication) GetUser(w http.ResponseWriter, r *http.Request) (Use
 	}
 	switch tokenType {
 	case JWTAUTH:
+		if auth.JWTProvider == nil {
+			return user, fmt.Errorf("JWT provider not available")
+		}
 		return auth.JWTProvider.GetUser(identifier)
 	case OIDCAUTH:
+		if auth.OICDProvider == nil {
+			return user, fmt.Errorf("OIDC provider not available")
+		}
 		return auth.OICDProvider.GetUser(identifier, r.Context())
 	}
 	return user, fmt.Errorf("no authentication providers found")
