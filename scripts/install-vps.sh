@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# WarpTail VPS Installation Script
-# This script installs WarpTail on Ubuntu/Debian systems
+# WarpTail VPS Installation/Upgrade Script
+# This script installs or upgrades WarpTail on Ubuntu/Debian systems
 
 set -e
 
@@ -18,6 +18,9 @@ WARPTAIL_HOME="/var/lib/warptail"
 CONFIG_DIR="/etc/warptail"
 LOG_DIR="/var/log/warptail"
 INSTALL_DIR="/usr/local/bin"
+
+# Operation mode
+OPERATION_MODE="install"
 
 print_status() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -64,6 +67,40 @@ check_os() {
     print_success "Detected OS: $PRETTY_NAME"
 }
 
+show_help() {
+    echo "WarpTail VPS Installation/Upgrade Script"
+    echo
+    echo "Usage: $0 [OPTIONS]"
+    echo
+    echo "Options:"
+    echo "  -h, --help     Show this help message"
+    echo "  -u, --upgrade  Upgrade existing WarpTail installation"
+    echo "  -i, --install  Install WarpTail (default)"
+    echo
+    echo "Examples:"
+    echo "  $0                 # Install WarpTail"
+    echo "  $0 --install       # Install WarpTail"
+    echo "  $0 --upgrade       # Upgrade WarpTail"
+    echo
+}
+
+check_existing_installation() {
+    if [[ -f "$INSTALL_DIR/warptail" ]] && systemctl list-unit-files | grep -q "warptail.service"; then
+        return 0  # Installation exists
+    else
+        return 1  # No installation found
+    fi
+}
+
+get_current_version() {
+    if [[ -f "$INSTALL_DIR/warptail" ]]; then
+        local current_version=$("$INSTALL_DIR/warptail" --version 2>/dev/null | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "unknown")
+        echo "$current_version"
+    else
+        echo "not installed"
+    fi
+}
+
 
 create_user() {
     if id "$WARPTAIL_USER" &>/dev/null; then
@@ -80,14 +117,49 @@ create_user() {
 }
 
 install_warptail() {
-    print_status "Installing WarpTail binary..."
+    local is_upgrade="$1"
+    local service_was_running=false
     
-    # Get latest release
+    if [[ "$is_upgrade" == "true" ]]; then
+        print_status "Upgrading WarpTail binary..."
+        
+        # Check if service is running
+        if systemctl is-active --quiet warptail; then
+            service_was_running=true
+            print_status "Stopping WarpTail service..."
+            sudo systemctl stop warptail
+        fi
+        
+        # Backup current binary
+        if [[ -f "$INSTALL_DIR/warptail" ]]; then
+            sudo cp "$INSTALL_DIR/warptail" "$INSTALL_DIR/warptail.backup"
+            print_status "Current binary backed up to warptail.backup"
+        fi
+    else
+        print_status "Installing WarpTail binary..."
+    fi
+    
+    # Get current and latest versions
+    local current_version=$(get_current_version)
     LATEST_VERSION=$(curl -s https://api.github.com/repos/robrotheram/warptail/releases/latest | grep -o '"tag_name": "[^"]*"' | sed 's/"tag_name": "//;s/"//')
     
     if [[ -z "$LATEST_VERSION" ]]; then
         print_error "Failed to get latest version from GitHub"
         exit 1
+    fi
+    
+    if [[ "$is_upgrade" == "true" && "$current_version" != "not installed" && "$current_version" != "unknown" ]]; then
+        print_status "Current version: $current_version"
+        print_status "Latest version: $LATEST_VERSION"
+        
+        if [[ "$current_version" == "$LATEST_VERSION" ]]; then
+            print_warning "Already running the latest version ($LATEST_VERSION)"
+            if [[ "$service_was_running" == "true" ]]; then
+                print_status "Starting WarpTail service..."
+                sudo systemctl start warptail
+            fi
+            return 0
+        fi
     fi
     
     print_status "Downloading WarpTail version: $LATEST_VERSION"
@@ -97,6 +169,13 @@ install_warptail() {
     
     if ! wget -q "$DOWNLOAD_URL" -O warptail-linux-amd64; then
         print_error "Failed to download WarpTail binary"
+        if [[ "$is_upgrade" == "true" && -f "$INSTALL_DIR/warptail.backup" ]]; then
+            print_status "Restoring backup..."
+            sudo mv "$INSTALL_DIR/warptail.backup" "$INSTALL_DIR/warptail"
+            if [[ "$service_was_running" == "true" ]]; then
+                sudo systemctl start warptail
+            fi
+        fi
         exit 1
     fi
     
@@ -105,7 +184,35 @@ install_warptail() {
     sudo chmod +x "$INSTALL_DIR/warptail"
     sudo chown root:root "$INSTALL_DIR/warptail"
     
-    print_success "WarpTail binary installed successfully"
+    # Remove backup if upgrade was successful
+    if [[ "$is_upgrade" == "true" && -f "$INSTALL_DIR/warptail.backup" ]]; then
+        sudo rm -f "$INSTALL_DIR/warptail.backup"
+    fi
+    
+    if [[ "$is_upgrade" == "true" ]]; then
+        print_success "WarpTail upgraded successfully to version: $LATEST_VERSION"
+        
+        # Restart service if it was running
+        if [[ "$service_was_running" == "true" ]]; then
+            print_status "Starting WarpTail service..."
+            sudo systemctl daemon-reload
+            sudo systemctl start warptail
+            
+            # Verify service started successfully
+            sleep 2
+            if systemctl is-active --quiet warptail; then
+                print_success "WarpTail service restarted successfully"
+            else
+                print_error "Failed to restart WarpTail service"
+                print_status "Check service status: sudo systemctl status warptail"
+                print_status "Check logs: sudo journalctl -u warptail -f"
+            fi
+        else
+            print_status "Service was not running. Use 'sudo systemctl start warptail' to start it."
+        fi
+    else
+        print_success "WarpTail binary installed successfully"
+    fi
 }
 
 create_config() {
@@ -257,7 +364,7 @@ EOF
     print_success "Log rotation configured"
 }
 
-print_summary() {
+print_install_summary() {
     echo
     echo "=================================="
     echo "  WarpTail Installation Complete!"
@@ -285,9 +392,102 @@ print_summary() {
     echo
 }
 
+print_upgrade_summary() {
+    echo
+    echo "================================="
+    echo "  WarpTail Upgrade Complete!"
+    echo "================================="
+    echo
+    print_success "WarpTail has been successfully upgraded!"
+    echo
+    local current_version=$(get_current_version)
+    echo "Current version: $current_version"
+    echo
+    echo "Service status:"
+    if systemctl is-active --quiet warptail; then
+        print_success "WarpTail service is running"
+    else
+        print_warning "WarpTail service is not running"
+        echo "To start: sudo systemctl start warptail"
+    fi
+    echo
+    echo "Useful commands:"
+    echo "  Check status: sudo systemctl status warptail"
+    echo "  View logs: sudo journalctl -u warptail -f"
+    echo "  Restart service: sudo systemctl restart warptail"
+    echo
+    echo "Documentation: https://github.com/robrotheram/warptail"
+    echo
+}
+
+perform_upgrade() {
+    print_status "Starting WarpTail upgrade..."
+    
+    if ! check_existing_installation; then
+        print_error "No existing WarpTail installation found."
+        print_status "Use --install option to install WarpTail for the first time."
+        exit 1
+    fi
+    
+    install_warptail true
+    
+    print_upgrade_summary
+}
+
+perform_install() {
+    print_status "Starting WarpTail installation..."
+    
+    if check_existing_installation; then
+        print_warning "WarpTail appears to be already installed."
+        print_status "Use --upgrade option to upgrade the existing installation."
+        read -p "Do you want to continue with installation anyway? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_status "Installation cancelled."
+            exit 0
+        fi
+    fi
+    
+    create_user
+    install_warptail false
+    create_config
+    create_systemd_service
+    configure_firewall
+    setup_log_rotation
+    
+    print_install_summary
+}
+
 main() {
+    # Parse command line arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -u|--upgrade)
+                OPERATION_MODE="upgrade"
+                shift
+                ;;
+            -i|--install)
+                OPERATION_MODE="install"
+                shift
+                ;;
+            *)
+                print_error "Unknown option: $1"
+                show_help
+                exit 1
+                ;;
+        esac
+    done
+    
     echo "======================================="
-    echo "  WarpTail VPS Installation Script"
+    if [[ "$OPERATION_MODE" == "upgrade" ]]; then
+        echo "  WarpTail VPS Upgrade Script"
+    else
+        echo "  WarpTail VPS Installation Script"
+    fi
     echo "======================================="
     echo
     
@@ -295,16 +495,11 @@ main() {
     check_sudo
     check_os
     
-    print_status "Starting WarpTail installation..."
-    
-    create_user
-    install_warptail
-    create_config
-    create_systemd_service
-    configure_firewall
-    setup_log_rotation
-    
-    print_summary
+    if [[ "$OPERATION_MODE" == "upgrade" ]]; then
+        perform_upgrade
+    else
+        perform_install
+    fi
 }
 
 # Run main function
