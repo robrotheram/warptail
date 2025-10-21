@@ -19,7 +19,9 @@ func NewUserStore(db *bun.DB, config *utils.BasicProvider) *Users {
 	store := Users{
 		db: db,
 	}
-	store.CreateAdminUser(config)
+	if config != nil {
+		store.CreateAdminUser(config)
+	}
 	return &store
 }
 
