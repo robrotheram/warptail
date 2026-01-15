@@ -13,22 +13,24 @@ import (
 )
 
 const (
-	udpBufferSize  = 65535
-	sessionTimeout = 2 * time.Minute
+	udpBufferSize        = 65535
+	udpSessionTimeout    = 2 * time.Minute
+	udpSocketBufferSize  = 4 * 1024 * 1024 // 4MB
+	udpReadTimeout       = 10 * time.Millisecond
+	udpHeartbeatInterval = 5 * time.Second
 )
 
-// udpSession represents a client session for UDP NAT traversal
+// udpSession represents a client session for UDP NAT traversal.
+// Each client gets its own session with a dedicated backend connection
+// to maintain consistent source ports for protocols like QUIC.
 type udpSession struct {
-	clientAddr  *net.UDPAddr
-	proxy       net.Conn
-	lastActive  time.Time
-	mu          sync.Mutex
-	ready       chan struct{} // signals that first packet has been sent
-	readyOnce   sync.Once
-	done        chan struct{} // signals the session is done
-	closed      bool
-	packetsSent int
-	packetsRecv int
+	clientAddr *net.UDPAddr
+	proxy      net.Conn
+	lastActive time.Time
+	mu         sync.Mutex
+	ready      chan struct{}
+	readyOnce  sync.Once
+	closed     bool
 }
 
 func (s *udpSession) updateLastActive() {
@@ -43,20 +45,40 @@ func (s *udpSession) isExpired(timeout time.Duration) bool {
 	return time.Since(s.lastActive) > timeout
 }
 
+func (s *udpSession) close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.closed {
+		s.closed = true
+		s.proxy.Close()
+	}
+}
+
+func (s *udpSession) isClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
+}
+
+// UDPRoute handles UDP traffic proxying through Tailscale.
+// It maintains per-client sessions to preserve connection identity
+// for stateful UDP protocols like QUIC.
 type UDPRoute struct {
 	config   utils.RouteConfig
 	status   RouterStatus
 	client   *tailscale.Client
 	data     *utils.TimeSeries
 	listener *net.UDPConn
-	quit     chan bool
-	exited   chan bool
+
+	quit   chan struct{}
+	exited chan struct{}
 
 	sessions   map[string]*udpSession
 	sessionsMu sync.RWMutex
 
-	latency  time.Duration
-	heatbeat *time.Ticker
+	latency   time.Duration
+	latencyMu sync.RWMutex
+	heartbeat *time.Ticker
 }
 
 func NewUDPRoute(config utils.RouteConfig, client *tailscale.Client) *UDPRoute {
@@ -92,9 +114,15 @@ func (route *UDPRoute) Stop() error {
 		return fmt.Errorf("route not running")
 	}
 	route.status = STOPPING
+
+	if route.heartbeat != nil {
+		route.heartbeat.Stop()
+	}
+
 	close(route.quit)
 	<-route.exited
-	utils.Logger.Info("Stopped UDP route successfully")
+
+	utils.Logger.Info("Stopped UDP route", "port", route.config.Port)
 	route.status = STOPPED
 	return nil
 }
@@ -103,116 +131,98 @@ func (route *UDPRoute) Start() error {
 	if route.status == RUNNING {
 		route.Stop()
 	}
-	// Disable heartbeat for UDP - it creates extra connections that could interfere
-	// go route.heartbeat(5 * time.Second)
 	route.status = STARTING
 
 	laddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", route.config.Port))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to resolve address: %w", err)
 	}
-
-	route.quit = make(chan bool)
-	route.exited = make(chan bool)
-	route.sessions = make(map[string]*udpSession)
 
 	route.listener, err = net.ListenUDP("udp", laddr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to listen: %w", err)
 	}
 
 	// Increase socket buffer sizes for better throughput
-	route.listener.SetReadBuffer(4 * 1024 * 1024)  // 4MB
-	route.listener.SetWriteBuffer(4 * 1024 * 1024) // 4MB
+	route.listener.SetReadBuffer(udpSocketBufferSize)
+	route.listener.SetWriteBuffer(udpSocketBufferSize)
+
+	route.quit = make(chan struct{})
+	route.exited = make(chan struct{})
+	route.sessions = make(map[string]*udpSession)
 
 	go route.serve()
 	go route.cleanupSessions()
+	go route.runHeartbeat()
+
 	route.status = RUNNING
+	utils.Logger.Info("UDP route started", "port", route.config.Port, "backend", route.backendAddr())
 	return nil
+}
+
+func (route *UDPRoute) backendAddr() string {
+	return fmt.Sprintf("%s:%d", route.config.Machine.Address, route.config.Machine.Port)
 }
 
 func (route *UDPRoute) serve() {
 	buffer := make([]byte, udpBufferSize)
-	utils.Logger.Info("UDP route serving", "port", route.config.Port, "backend", fmt.Sprintf("%s:%d", route.config.Machine.Address, route.config.Machine.Port))
 
 	for {
 		select {
 		case <-route.quit:
-			utils.Logger.Info("Shutting down UDP route...")
 			route.listener.Close()
 			route.closeAllSessions()
 			close(route.exited)
 			return
 		default:
-			route.listener.SetDeadline(time.Now().Add(1 * time.Second))
-			n, clientAddr, err := route.listener.ReadFromUDP(buffer)
-			if err != nil {
-				if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-					continue
-				}
-				utils.Logger.Error(err, "failed to read UDP packet")
-				continue
-			}
-
-			// Get or create session for this client
-			session, err := route.getOrCreateSession(clientAddr)
-			if err != nil {
-				utils.Logger.Error(err, "failed to create session for client")
-				continue
-			}
-
-			// Forward packet to backend synchronously to preserve order
-			session.updateLastActive()
-			data := make([]byte, n)
-			copy(data, buffer[:n])
-
-			route.forwardToBackend(session, data)
 		}
+
+		route.listener.SetDeadline(time.Now().Add(1 * time.Second))
+		n, clientAddr, err := route.listener.ReadFromUDP(buffer)
+		if err != nil {
+			if isTimeout(err) {
+				continue
+			}
+			utils.Logger.Error(err, "failed to read UDP packet")
+			continue
+		}
+
+		session, err := route.getOrCreateSession(clientAddr)
+		if err != nil {
+			utils.Logger.Error(err, "failed to create session", "client", clientAddr)
+			continue
+		}
+
+		// Forward packet synchronously to preserve ordering
+		session.updateLastActive()
+		route.forwardToBackend(session, buffer[:n])
 	}
 }
 
 func (route *UDPRoute) getOrCreateSession(clientAddr *net.UDPAddr) (*udpSession, error) {
 	key := clientAddr.String()
 
+	// Fast path: check if session exists
 	route.sessionsMu.RLock()
 	session, exists := route.sessions[key]
 	route.sessionsMu.RUnlock()
-
-	if exists {
+	if exists && !session.isClosed() {
 		return session, nil
 	}
 
+	// Slow path: create new session
 	route.sessionsMu.Lock()
 	defer route.sessionsMu.Unlock()
 
 	// Double-check after acquiring write lock
-	if session, exists = route.sessions[key]; exists {
+	if session, exists = route.sessions[key]; exists && !session.isClosed() {
 		return session, nil
 	}
 
-	// Create direct UDP connection to backend (Tailscale IP)
-	// This maintains a stable source port unlike UserDial
-	backendAddr := fmt.Sprintf("%s:%d", route.config.Machine.Address, route.config.Machine.Port)
-	utils.Logger.Info("Creating new UDP session", "client", key, "backend", backendAddr)
-
-	var proxy net.Conn
-	var err error
-
-	// Try direct UDP connection first (works if both on same Tailnet)
-	proxy, err = net.Dial("udp", backendAddr)
+	// Create connection to backend
+	proxy, err := route.dialBackend()
 	if err != nil {
-		// Fall back to Tailscale UserDial
-		utils.Logger.Info("Direct UDP failed, trying Tailscale UserDial", "error", err)
-		proxy, err = route.client.UserDial(context.Background(), "udp", route.config.Machine.Address, route.config.Machine.Port)
-		if err != nil {
-			return nil, fmt.Errorf("failed to dial backend: %w", err)
-		}
-	}
-
-	// Try to increase buffer sizes on the proxy connection
-	if udpConn, ok := proxy.(*net.UDPConn); ok {
-		udpConn.SetReadBuffer(4 * 1024 * 1024)
-		udpConn.SetWriteBuffer(4 * 1024 * 1024)
+		return nil, err
 	}
 
 	session = &udpSession{
@@ -220,33 +230,52 @@ func (route *UDPRoute) getOrCreateSession(clientAddr *net.UDPAddr) (*udpSession,
 		proxy:      proxy,
 		lastActive: time.Now(),
 		ready:      make(chan struct{}),
-		done:       make(chan struct{}),
 	}
 	route.sessions[key] = session
 
-	// Start goroutine to forward responses back to client
 	go route.forwardToClient(session)
 
+	utils.Logger.Info("Created UDP session", "client", key, "backend", route.backendAddr())
 	return session, nil
 }
 
+func (route *UDPRoute) dialBackend() (net.Conn, error) {
+	backendAddr := route.backendAddr()
+
+	// Try direct UDP connection first (works on same Tailnet)
+	conn, err := net.Dial("udp", backendAddr)
+	if err == nil {
+		if udpConn, ok := conn.(*net.UDPConn); ok {
+			udpConn.SetReadBuffer(udpSocketBufferSize)
+			udpConn.SetWriteBuffer(udpSocketBufferSize)
+		}
+		return conn, nil
+	}
+
+	// Fall back to Tailscale UserDial
+	conn, err = route.client.UserDial(context.Background(), "udp", route.config.Machine.Address, route.config.Machine.Port)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial backend: %w", err)
+	}
+	return conn, nil
+}
+
 func (route *UDPRoute) forwardToBackend(session *udpSession, data []byte) {
-	session.mu.Lock()
-	if session.closed {
-		session.mu.Unlock()
+	if session.isClosed() {
 		return
 	}
+
+	session.mu.Lock()
 	n, err := session.proxy.Write(data)
-	session.packetsSent++
 	session.mu.Unlock()
 
-	// Signal that first packet has been sent
+	// Signal ready after first packet sent
 	session.readyOnce.Do(func() {
 		close(session.ready)
 	})
 
 	if err != nil {
-		utils.Logger.Error(err, "failed to forward packet to backend", "client", session.clientAddr.String())
+		utils.Logger.Error(err, "failed to forward to backend", "client", session.clientAddr)
 		return
 	}
 	route.data.LogSent(uint64(n))
@@ -256,81 +285,58 @@ func (route *UDPRoute) forwardToClient(session *udpSession) {
 	buffer := make([]byte, udpBufferSize)
 	clientKey := session.clientAddr.String()
 
-	// Wait for the first packet to be sent before we start reading
+	// Wait for first packet before reading responses
 	select {
 	case <-session.ready:
-		utils.Logger.Info("Started response forwarder for client", "client", clientKey)
 	case <-route.quit:
 		return
-	case <-time.After(sessionTimeout):
-		utils.Logger.Info("Session timed out waiting for first packet", "client", clientKey)
+	case <-time.After(udpSessionTimeout):
 		route.removeSession(clientKey)
 		return
 	}
 
 	consecutiveEOFs := 0
-	maxConsecutiveEOFs := 10
 
 	for {
-		// Check quit channel non-blocking
 		select {
 		case <-route.quit:
-			utils.Logger.Info("Stopping response forwarder due to quit signal", "client", clientKey)
 			return
 		default:
 		}
 
-		// Set short read deadline for fast polling
-		session.proxy.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+		session.proxy.SetReadDeadline(time.Now().Add(udpReadTimeout))
 		n, err := session.proxy.Read(buffer)
+
 		if err != nil {
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				// Check if session expired
-				if session.isExpired(sessionTimeout) {
-					utils.Logger.Info("Session expired, removing", "client", clientKey)
+			if isTimeout(err) {
+				if session.isExpired(udpSessionTimeout) {
 					route.removeSession(clientKey)
 					return
 				}
-				consecutiveEOFs = 0 // reset on timeout (normal)
+				consecutiveEOFs = 0
 				continue
 			}
 
-			// For EOF, don't reconnect - just wait and retry
-			// Tailscale UDP connections may return EOF between packets
 			if err == io.EOF {
 				consecutiveEOFs++
-				if consecutiveEOFs >= maxConsecutiveEOFs {
-					// Too many EOFs, check if session is still active
-					if session.isExpired(sessionTimeout) {
-						utils.Logger.Info("Session expired after multiple EOFs", "client", clientKey)
-						route.removeSession(clientKey)
-						return
-					}
-					consecutiveEOFs = 0
+				if consecutiveEOFs >= 10 && session.isExpired(udpSessionTimeout) {
+					route.removeSession(clientKey)
+					return
 				}
-				// Small sleep to avoid busy loop, then continue reading
-				time.Sleep(10 * time.Millisecond)
+				time.Sleep(udpReadTimeout)
 				continue
 			}
 
-			// Other connection error
-			utils.Logger.Error(err, "Error reading from backend, closing session", "client", clientKey)
 			route.removeSession(clientKey)
 			return
 		}
 
 		consecutiveEOFs = 0
-		session.mu.Lock()
-		session.packetsRecv++
-		session.mu.Unlock()
 		session.updateLastActive()
 
-		// Send response back to client
-		_, err = route.listener.WriteToUDP(buffer[:n], session.clientAddr)
-		if err != nil {
-			continue
+		if _, err = route.listener.WriteToUDP(buffer[:n], session.clientAddr); err == nil {
+			route.data.LogRecived(uint64(n))
 		}
-		route.data.LogRecived(uint64(n))
 	}
 }
 
@@ -339,13 +345,7 @@ func (route *UDPRoute) removeSession(key string) {
 	defer route.sessionsMu.Unlock()
 
 	if session, exists := route.sessions[key]; exists {
-		session.mu.Lock()
-		if !session.closed {
-			session.closed = true
-			close(session.done)
-		}
-		session.mu.Unlock()
-		session.proxy.Close()
+		session.close()
 		delete(route.sessions, key)
 	}
 }
@@ -355,13 +355,7 @@ func (route *UDPRoute) closeAllSessions() {
 	defer route.sessionsMu.Unlock()
 
 	for key, session := range route.sessions {
-		session.mu.Lock()
-		if !session.closed {
-			session.closed = true
-			close(session.done)
-		}
-		session.mu.Unlock()
-		session.proxy.Close()
+		session.close()
 		delete(route.sessions, key)
 	}
 }
@@ -377,8 +371,8 @@ func (route *UDPRoute) cleanupSessions() {
 		case <-ticker.C:
 			route.sessionsMu.Lock()
 			for key, session := range route.sessions {
-				if session.isExpired(sessionTimeout) {
-					session.proxy.Close()
+				if session.isExpired(udpSessionTimeout) {
+					session.close()
 					delete(route.sessions, key)
 					utils.Logger.Info("Cleaned up expired UDP session", "client", key)
 				}
@@ -388,29 +382,44 @@ func (route *UDPRoute) cleanupSessions() {
 	}
 }
 
-func (route *UDPRoute) heartbeat(timeout time.Duration) {
-	route.heatbeat = time.NewTicker(timeout)
-	go func() {
-		for range route.heatbeat.C {
-			if route.status != RUNNING {
-				route.latency = time.Duration(-1)
-				route.heatbeat.Stop()
-				continue
-			}
-			start := time.Now()
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-			conn, err := route.client.UserDial(ctx, "udp", route.config.Machine.Address, route.config.Machine.Port)
-			cancel()
-			if err != nil {
-				route.latency = time.Duration(-1)
-				continue
-			}
-			conn.Close()
-			route.latency = time.Since(start)
+func (route *UDPRoute) runHeartbeat() {
+	route.heartbeat = time.NewTicker(udpHeartbeatInterval)
+
+	for {
+		select {
+		case <-route.quit:
+			return
+		case <-route.heartbeat.C:
+			route.measureLatency()
 		}
-	}()
+	}
+}
+
+func (route *UDPRoute) measureLatency() {
+	start := time.Now()
+	conn, err := net.DialTimeout("udp", route.backendAddr(), time.Second)
+
+	route.latencyMu.Lock()
+	defer route.latencyMu.Unlock()
+
+	if err != nil {
+		route.latency = -1
+		return
+	}
+	conn.Close()
+	route.latency = time.Since(start)
 }
 
 func (route *UDPRoute) Ping() time.Duration {
+	route.latencyMu.RLock()
+	defer route.latencyMu.RUnlock()
 	return route.latency
+}
+
+// isTimeout checks if an error is a network timeout
+func isTimeout(err error) bool {
+	if netErr, ok := err.(net.Error); ok {
+		return netErr.Timeout()
+	}
+	return false
 }

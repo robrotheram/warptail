@@ -2,7 +2,6 @@ package router
 
 import (
 	"fmt"
-	"sync"
 	"time"
 	"warptail/pkg/utils"
 
@@ -117,8 +116,8 @@ func (svc *Service) Status(full bool) ServiceStatus {
 		Name:    svc.Name,
 		Enabled: svc.Enabled,
 		Routes:  []RouteStatus{},
-		Latency: svc.HeartBeat().Milliseconds(),
 	}
+	totalLatency := time.Duration(0)
 	if full {
 		status.Stats = utils.TimeSeriesData{
 			Points: []utils.DataPoint{},
@@ -129,37 +128,18 @@ func (svc *Service) Status(full bool) ServiceStatus {
 		rStatus := RouteStatus{
 			RouteConfig: routes.Config(),
 			Status:      routes.Status(),
+			Latency:     routes.Ping().Nanoseconds(),
 		}
+		totalLatency += routes.Ping()
 		if full {
-			rStatus.Latency = routes.Ping().Milliseconds()
+			status.Stats = utils.CombineTimeSeriesData(status.Stats, routes.Stats())
 		}
-		status.Stats = utils.CombineTimeSeriesData(status.Stats, routes.Stats())
 		status.Routes = append(status.Routes, rStatus)
 	}
+	if len(svc.Routes) > 0 {
+		status.Latency = totalLatency.Nanoseconds() / int64(len(svc.Routes))
+	}
 	return status
-}
-
-func (svc *Service) HeartBeat() time.Duration {
-	if len(svc.Routes) == 0 {
-		return 0
-	}
-	var mu sync.Mutex
-	var totalLatency time.Duration
-	wg := sync.WaitGroup{}
-
-	for _, route := range svc.Routes {
-		wg.Add(1)
-		go func(r Route) {
-			defer wg.Done()
-			pingResult := r.Ping()
-			mu.Lock()
-			totalLatency += pingResult
-			mu.Unlock()
-		}(route)
-	}
-	wg.Wait()
-
-	return totalLatency / time.Duration(len(svc.Routes))
 }
 
 func (svc *Service) Stop() {

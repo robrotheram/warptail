@@ -11,6 +11,7 @@ import {
   LockIcon,
 } from 'lucide-react'
 import { Route, RouterStatus, RouterType } from '../../lib/api'
+import { formatDuration } from '@/lib/utils'
 
 type RouteCardProps = {
   route: Route
@@ -47,7 +48,7 @@ export const RouteStatusCard = ({ route }: RouteCardProps) => {
         <div className='col-span-3'>{route.machine.address}:{route.machine.port}</div>
         <div className='col-span-2 flex gap-2'>
           <Activity className={`h-5 w-5 ${isActive(route) ? 'text-green-500' : 'text-red-500'}`} />
-          {isActive(route) && `${route.latency} ms`}
+          {isActive(route) && `${formatDuration(route.latency)}`}
         </div>
         <Badge
           variant={

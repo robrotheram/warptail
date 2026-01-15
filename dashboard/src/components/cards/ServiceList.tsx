@@ -9,6 +9,7 @@ import { Input } from '../ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
+import { formatDuration } from '@/lib/utils'
 
 export const CreateServiceModel = () => {
   const navigate = useNavigate({ from: `/` })
@@ -119,10 +120,10 @@ export const RouteList = ({ read_only }: RouteListProps) => {
                   return <TableRow onClick={() => navigate({ to: `/routes/${svc.id}` })} className='cursor-pointer' key={svc.id}>
                     <TableCell className="font-medium">{svc.name}</TableCell>
                     <TableCell>
-                      {svc.enabled && svc.latency ? `${svc.latency} ms` : "n/a"}
+                      {svc.enabled && svc.latency ? `${formatDuration(svc.latency)}` : "n/a"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={`${svc.enabled ? "default" : "destructive"}`}>{`${svc.enabled ? "Active" : "Inactive"}`}</Badge>
+                      <Badge variant={`${svc.enabled ? "default" : "destructive"}`} className={`${svc.enabled ? "bg-green-700" : "bg-red-700"}`}>{`${svc.enabled ? "Active" : "Inactive"}`}</Badge>
                     </TableCell>
                   </TableRow>
                 });

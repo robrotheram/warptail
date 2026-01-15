@@ -160,10 +160,20 @@ func (r *Router) GetPeers() ([]TailscalePeers, *utils.RouterError) {
 		return []TailscalePeers{}, utils.CustomError(http.StatusInternalServerError, "unable to get tailscale status")
 	}
 	nodes := []TailscalePeers{}
+	seen := make(map[string]bool)
 	for _, peer := range status.Peer {
+		if len(peer.TailscaleIPs) == 0 {
+			continue
+		}
+		ip := peer.TailscaleIPs[0].String()
+		key := peer.HostName + ":" + ip
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
 		nodes = append(nodes, TailscalePeers{
 			HostName: peer.HostName,
-			IP:       peer.TailscaleIPs[0].String(),
+			IP:       ip,
 		})
 	}
 	return nodes, nil

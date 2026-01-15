@@ -23,6 +23,27 @@ export const formatBytes = (bytes: number): string =>{
   return `${formattedSize} ${sizes[i]}`
 }
 
+export const formatDuration = (nanoseconds?: number): string => {
+  if (nanoseconds === undefined || nanoseconds < 0) return '-'
+  if (nanoseconds === 0) return '0 ns'
+  
+  const units = [
+    { label: 's', value: 1_000_000_000 },
+    { label: 'ms', value: 1_000_000 },
+    { label: 'µs', value: 1_000 },
+    { label: 'ns', value: 1 },
+  ]
+  
+  for (const unit of units) {
+    if (nanoseconds >= unit.value) {
+      const value = nanoseconds / unit.value
+      return `${value.toFixed(value < 10 ? 2 : value < 100 ? 1 : 0)} ${unit.label}`
+    }
+  }
+  
+  return `${nanoseconds} ns`
+}
+
 /**
  * Function to interpolate missing ProxyStats values between two data points.
  * @param prev The previous data point.
@@ -136,3 +157,5 @@ export const parseLog = (log: string): ParsedLog | null => {
     message,
   };
 }
+
+

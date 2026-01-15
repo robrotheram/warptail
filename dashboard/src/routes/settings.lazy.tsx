@@ -329,10 +329,10 @@ const TailScaleNodes = ({ nodes }: TailScaleNodesProps) => {
                     </Badge>
                   </TableCell>
                   <TableCell>{node.os}</TableCell>
-                  <TableCell className="flex items-center gap-1">
+                  {!node.online && <TableCell className="flex items-center gap-1">
                     <Clock className="h-3 w-3 text-muted-foreground" />
                     <span>{formatLastSeen(node.last_seen)}</span>
-                  </TableCell>
+                  </TableCell>}
                 </TableRow>
               ))}
             </TableBody>
