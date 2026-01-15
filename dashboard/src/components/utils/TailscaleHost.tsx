@@ -59,7 +59,7 @@ export const TailscaleHost = ({ route, updateRoute }: TailscaleHostProps) => {
 
   const handlePortChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target
-    const port = parseInt(value, 10)
+    const port = value === '' ? 0 : parseInt(value, 10)
     if (!isNaN(port)) {
       updateRoute({
         ...route, machine: {
@@ -149,7 +149,7 @@ export const TailscaleHost = ({ route, updateRoute }: TailscaleHostProps) => {
         <Input
           id="port"
           name="port"
-          type="number"
+          type="text"
           value={machine?.port}
           onChange={handlePortChange}
         />

@@ -101,14 +101,14 @@ type ServiceStatus struct {
 	Name    string               `json:"name"`
 	Enabled bool                 `json:"enabled"`
 	Routes  []RouteStatus        `json:"routes"`
-	Latency time.Duration        `json:"latency,omitempty"`
+	Latency int64                `json:"latency,omitempty"`
 	Stats   utils.TimeSeriesData `json:"stats,omitempty"`
 }
 
 type RouteStatus struct {
 	utils.RouteConfig
-	Status  RouterStatus  `json:"status,omitempty"`
-	Latency time.Duration `json:"latency,omitempty"`
+	Status  RouterStatus `json:"status,omitempty"`
+	Latency int64        `json:"latency,omitempty"`
 }
 
 func (svc *Service) Status(full bool) ServiceStatus {
@@ -117,7 +117,7 @@ func (svc *Service) Status(full bool) ServiceStatus {
 		Name:    svc.Name,
 		Enabled: svc.Enabled,
 		Routes:  []RouteStatus{},
-		Latency: svc.HeartBeat(),
+		Latency: svc.HeartBeat().Milliseconds(),
 	}
 	if full {
 		status.Stats = utils.TimeSeriesData{
@@ -131,7 +131,7 @@ func (svc *Service) Status(full bool) ServiceStatus {
 			Status:      routes.Status(),
 		}
 		if full {
-			rStatus.Latency = routes.Ping()
+			rStatus.Latency = routes.Ping().Milliseconds()
 		}
 		status.Stats = utils.CombineTimeSeriesData(status.Stats, routes.Stats())
 		status.Routes = append(status.Routes, rStatus)
@@ -140,21 +140,26 @@ func (svc *Service) Status(full bool) ServiceStatus {
 }
 
 func (svc *Service) HeartBeat() time.Duration {
-	latency := time.Nanosecond
+	if len(svc.Routes) == 0 {
+		return 0
+	}
+	var mu sync.Mutex
+	var totalLatency time.Duration
 	wg := sync.WaitGroup{}
+
 	for _, route := range svc.Routes {
 		wg.Add(1)
-		go func() {
+		go func(r Route) {
 			defer wg.Done()
-			latency += route.Ping()
-		}()
+			pingResult := r.Ping()
+			mu.Lock()
+			totalLatency += pingResult
+			mu.Unlock()
+		}(route)
 	}
 	wg.Wait()
-	if latency == 0 || time.Duration(len(svc.Routes)) == 0 {
-		return latency
-	}
-	latency = latency / time.Duration(len(svc.Routes))
-	return latency
+
+	return totalLatency / time.Duration(len(svc.Routes))
 }
 
 func (svc *Service) Stop() {

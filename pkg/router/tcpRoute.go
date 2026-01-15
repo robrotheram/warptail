@@ -12,7 +12,7 @@ import (
 	tailscale "tailscale.com/client/local"
 )
 
-type NetworkRoute struct {
+type TCPRoute struct {
 	config   utils.RouteConfig
 	status   RouterStatus
 	client   *tailscale.Client
@@ -25,8 +25,8 @@ type NetworkRoute struct {
 	heatbeat *time.Ticker
 }
 
-func NewNetworkRoute(config utils.RouteConfig, client *tailscale.Client) *NetworkRoute {
-	return &NetworkRoute{
+func NewTCPRoute(config utils.RouteConfig, client *tailscale.Client) *TCPRoute {
+	return &TCPRoute{
 		config: config,
 		data:   utils.NewTimeSeries(time.Second, 1000),
 		status: STOPPED,
@@ -34,25 +34,25 @@ func NewNetworkRoute(config utils.RouteConfig, client *tailscale.Client) *Networ
 	}
 }
 
-func (route *NetworkRoute) Status() RouterStatus {
+func (route *TCPRoute) Status() RouterStatus {
 	return route.status
 }
 
-func (route *NetworkRoute) Config() utils.RouteConfig {
+func (route *TCPRoute) Config() utils.RouteConfig {
 	return route.config
 }
 
-func (route *NetworkRoute) Stats() utils.TimeSeriesData {
+func (route *TCPRoute) Stats() utils.TimeSeriesData {
 	return route.data.Data
 }
 
-func (route *NetworkRoute) Update(config utils.RouteConfig) error {
+func (route *TCPRoute) Update(config utils.RouteConfig) error {
 	route.Stop()
 	route.config = config
 	return route.Start()
 }
 
-func (route *NetworkRoute) Stop() error {
+func (route *TCPRoute) Stop() error {
 	if route.status != RUNNING {
 		return fmt.Errorf("route not running")
 	}
@@ -64,7 +64,7 @@ func (route *NetworkRoute) Stop() error {
 	return nil
 }
 
-func (route *NetworkRoute) Start() error {
+func (route *TCPRoute) Start() error {
 	if route.status == RUNNING {
 		route.Stop()
 	}
@@ -81,13 +81,12 @@ func (route *NetworkRoute) Start() error {
 	if err != nil {
 		return err
 	}
-
 	go route.serve()
 	route.status = RUNNING
 	return nil
 }
 
-func (route *NetworkRoute) serve() {
+func (route *TCPRoute) serve() {
 	var handlers sync.WaitGroup
 	for {
 		select {
@@ -116,7 +115,7 @@ func (route *NetworkRoute) serve() {
 	}
 }
 
-func (route *NetworkRoute) handleConnection(conn net.Conn) {
+func (route *TCPRoute) handleConnection(conn net.Conn) {
 	proxy, err := route.client.UserDial(context.Background(), string(route.config.Type), route.config.Machine.Address, route.config.Machine.Port)
 	if err != nil {
 		utils.Logger.Error(err, "remote connection failed")
@@ -133,7 +132,7 @@ func (route *NetworkRoute) handleConnection(conn net.Conn) {
 	go route.monitor(sendWriter, reciveWriter, wg)
 	wg.Wait()
 }
-func (route *NetworkRoute) monitor(to, from *ConnMonitor, wg *sync.WaitGroup) {
+func (route *TCPRoute) monitor(to, from *ConnMonitor, wg *sync.WaitGroup) {
 	defer wg.Done()
 	ticker := time.NewTicker(1 * time.Second)
 	for range ticker.C {
@@ -149,7 +148,7 @@ func (route *NetworkRoute) monitor(to, from *ConnMonitor, wg *sync.WaitGroup) {
 	}
 }
 
-func (route *NetworkRoute) copy(from, to io.ReadWriter, wg *sync.WaitGroup) {
+func (route *TCPRoute) copy(from, to io.ReadWriter, wg *sync.WaitGroup) {
 	defer wg.Done()
 	select {
 	case <-route.quit:
@@ -161,12 +160,12 @@ func (route *NetworkRoute) copy(from, to io.ReadWriter, wg *sync.WaitGroup) {
 	}
 }
 
-func (route *NetworkRoute) heartbeat(timeout time.Duration) {
+func (route *TCPRoute) heartbeat(timeout time.Duration) {
 	route.heatbeat = time.NewTicker(timeout)
 	go func() {
 		for range route.heatbeat.C {
 			if route.status != RUNNING {
-				route.latency = -1
+				route.latency = time.Duration(-1)
 				route.heatbeat.Stop()
 				continue
 			}
@@ -175,15 +174,15 @@ func (route *NetworkRoute) heartbeat(timeout time.Duration) {
 			conn, err := route.client.UserDial(ctx, string(route.config.Type), route.config.Machine.Address, route.config.Machine.Port)
 			cancel()
 			if err != nil {
-				route.latency = -1
+				route.latency = time.Duration(-1)
 				continue
 			}
 			conn.Close()
-			route.latency = time.Since(start) / time.Millisecond
+			route.latency = time.Since(start)
 		}
 	}()
 }
 
-func (route *NetworkRoute) Ping() time.Duration {
+func (route *TCPRoute) Ping() time.Duration {
 	return route.latency
 }

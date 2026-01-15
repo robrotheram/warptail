@@ -242,30 +242,30 @@ func (route *HTTPRoute) Handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (route *HTTPRoute) heartbeat(timeout time.Duration) {
-	route.heatbeat = time.NewTicker(timeout) // pointer, not value
+	route.heatbeat = time.NewTicker(timeout)
 	go func() {
 		for range route.heatbeat.C {
 			if route.status != RUNNING {
-				route.latency = -1
+				route.latency = time.Duration(-1)
 				route.heatbeat.Stop()
 				route.heatbeat = nil
-				return // exit goroutine after stopping ticker
+				return
 			}
 			route.Client.Timeout = 5 * time.Second
 			start := time.Now()
 			url, err := route.getUrl()
 			if err != nil {
-				route.latency = -1 // Unable to reach the server
+				route.latency = time.Duration(-1)
 				continue
 			}
 			resp, err := route.Get(url.String())
 			if err != nil {
 				utils.Logger.Error(err, "Error pinging server", "url", url.String())
-				route.latency = -1 // Unable to reach the server
+				route.latency = time.Duration(-1)
 				continue
 			}
 			resp.Body.Close()
-			route.latency = time.Since(start) / time.Millisecond
+			route.latency = time.Since(start)
 		}
 	}()
 }

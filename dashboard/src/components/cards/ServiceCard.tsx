@@ -40,20 +40,24 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
    const {user} = useAuth()
 
   const queryClient = useQueryClient()
+  const [service, setService] = useState<Service | null>(null);
   const { isPending, isError, data, isLoading } = useQuery({
     queryKey: ['route', id],
     retry: false,
     queryFn: () => getService(id),
-    refetchInterval: 5000, // Poll every 5 seconds
-    refetchIntervalInBackground: true, // Continue polling when tab is not active
+    refetchInterval: edit ? false : 5000, // Disable polling when editing
+    refetchIntervalInBackground: !edit, // Disable background polling when editing
   })
-  const [service, setService] = useState<Service | null>(null);
   useEffect(() => {
-    if (data) {
-      data.routes = data.routes.map((r, i) => { return { ...r, key: i } })
-      setService(data);
+    if (data && !edit) {
+      const updatedData = { ...data, routes: data.routes.map((r, i) => ({ ...r, key: i })) };
+      setService(updatedData);
+    } else if (data && edit && !service) {
+      // Only set initial data when entering edit mode
+      const updatedData = { ...data, routes: data.routes.map((r, i) => ({ ...r, key: i })) };
+      setService(updatedData);
     }
-  }, [data]);
+  }, [data, edit]);
 
   const updateStatus = useMutation({
     mutationFn: service?.enabled ? stopService : startService,
