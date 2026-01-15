@@ -21,21 +21,38 @@ type HTTPRoute struct {
 	latency  time.Duration
 	heatbeat *time.Ticker
 	*http.Client
+	heartbeatClient *http.Client
 }
 
 func NewHTTPRoute(config utils.RouteConfig, server *tsnet.Server) *HTTPRoute {
 	client := server.HTTPClient()
+
+	// Configure optimized transport for connection pooling and keep-alive
+	if transport, ok := client.Transport.(*http.Transport); ok {
+		transport.MaxIdleConns = 100
+		transport.MaxIdleConnsPerHost = 20
+		transport.IdleConnTimeout = 90 * time.Second
+		transport.DisableKeepAlives = false
+		transport.ForceAttemptHTTP2 = true
+		transport.WriteBufferSize = 64 * 1024
+		transport.ReadBufferSize = 64 * 1024
+	}
 
 	// Apply proxy settings timeout if configured
 	if config.ProxySettings != nil && config.ProxySettings.Timeout > 0 {
 		client.Timeout = time.Duration(config.ProxySettings.Timeout) * time.Second
 	}
 
+	// Create separate client for heartbeat to avoid affecting main traffic
+	heartbeatClient := server.HTTPClient()
+	heartbeatClient.Timeout = 5 * time.Second
+
 	return &HTTPRoute{
-		config: config,
-		data:   utils.NewTimeSeries(time.Second, 1000),
-		status: STOPPED,
-		Client: client,
+		config:          config,
+		data:            utils.NewTimeSeries(time.Second, 1000),
+		status:          STOPPED,
+		Client:          client,
+		heartbeatClient: heartbeatClient,
 	}
 }
 
@@ -251,14 +268,14 @@ func (route *HTTPRoute) heartbeat(timeout time.Duration) {
 				route.heatbeat = nil
 				return
 			}
-			route.Client.Timeout = 5 * time.Second
 			start := time.Now()
 			url, err := route.getUrl()
 			if err != nil {
 				route.latency = time.Duration(-1)
 				continue
 			}
-			resp, err := route.Get(url.String())
+			// Use dedicated heartbeat client to avoid affecting main traffic
+			resp, err := route.heartbeatClient.Get(url.String())
 			if err != nil {
 				utils.Logger.Error(err, "Error pinging server", "url", url.String())
 				route.latency = time.Duration(-1)

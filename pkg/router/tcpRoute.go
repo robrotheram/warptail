@@ -104,13 +104,14 @@ func (route *TCPRoute) serve() {
 					continue
 				}
 				utils.Logger.Error(err, "failed to accept connection")
+				continue
 			}
-			defer conn.Close()
 			handlers.Add(1)
-			go func() {
-				route.handleConnection(conn)
+			go func(c net.Conn) {
+				defer c.Close()
+				route.handleConnection(c)
 				handlers.Done()
-			}()
+			}(conn)
 		}
 	}
 }
@@ -150,11 +151,13 @@ func (route *TCPRoute) monitor(to, from *ConnMonitor, wg *sync.WaitGroup) {
 
 func (route *TCPRoute) copy(from, to io.ReadWriter, wg *sync.WaitGroup) {
 	defer wg.Done()
+	// Use 64KB buffer for better throughput on high-bandwidth connections
+	buf := make([]byte, 64*1024)
 	select {
 	case <-route.quit:
 		return
 	default:
-		if _, err := io.Copy(to, from); err != nil {
+		if _, err := io.CopyBuffer(to, from, buf); err != nil {
 			return
 		}
 	}
