@@ -9,6 +9,7 @@ import (
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	cmclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	"github.com/go-logr/logr"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 )
@@ -82,11 +83,25 @@ func (ctrl *CertifcationBuilder) Create(routes []utils.RouteConfig) error {
 		}
 		return nil
 	}
-	ctrl.logger.Info("Certficate exists, updating it...")
-	existingCertificate.Spec = certificate.Spec
-	_, err = ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Update(context.TODO(), existingCertificate, metav1.UpdateOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to update Ingress: %v", err)
+
+	// Retry loop for handling optimistic concurrency conflicts
+	maxRetries := 3
+	for i := 0; i < maxRetries; i++ {
+		ctrl.logger.Info("Certficate exists, updating it...")
+		existingCertificate.Spec = certificate.Spec
+		_, err = ctrl.cmclient.CertmanagerV1().Certificates(ctrl.Namespace).Update(context.TODO(), existingCertificate, metav1.UpdateOptions{})
+		if err == nil {
+			return nil
+		}
+		if !k8serrors.IsConflict(err) {
+			return fmt.Errorf("failed to update Certificate: %v", err)
+		}
+		// Conflict error - refetch and retry
+		ctrl.logger.Info("Conflict detected, refetching certificate and retrying...")
+		existingCertificate, err = ctrl.get()
+		if err != nil {
+			return fmt.Errorf("failed to refetch Certificate: %v", err)
+		}
 	}
-	return nil
+	return fmt.Errorf("failed to update Certificate after %d retries due to conflicts", maxRetries)
 }

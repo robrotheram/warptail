@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"go.uber.org/zap/zapcore"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
@@ -104,6 +105,7 @@ func setupLogger(logCfg LoggingConfig) {
 	opts.DestWriter = zapcore.NewMultiWriteSyncer(writers...)
 
 	Logger = zap.New(zap.UseFlagOptions(&opts))
+	ctrl.SetLogger(Logger)
 
 	err := os.MkdirAll(logCfg.Path, os.ModePerm)
 	if err != nil {
