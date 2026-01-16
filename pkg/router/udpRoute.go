@@ -16,7 +16,7 @@ const (
 	udpBufferSize        = 65535
 	udpSessionTimeout    = 2 * time.Minute
 	udpSocketBufferSize  = 4 * 1024 * 1024 // 4MB
-	udpReadTimeout       = 10 * time.Millisecond
+	udpReadTimeout       = 100 * time.Millisecond
 	udpHeartbeatInterval = 5 * time.Second
 )
 
@@ -349,7 +349,10 @@ func (route *UDPRoute) forwardToClient(session *udpSession) {
 		consecutiveEOFs = 0
 		session.updateLastActive()
 
-		if _, err = route.listener.WriteToUDP(buffer[:n], session.clientAddr); err == nil {
+		_, err = route.listener.WriteToUDP(buffer[:n], session.clientAddr)
+		if err != nil {
+			utils.Logger.Error(err, "failed to forward to client", "client", session.clientAddr, "bytes", n)
+		} else {
 			route.data.LogRecived(uint64(n))
 		}
 	}
