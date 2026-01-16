@@ -242,7 +242,22 @@ func (route *UDPRoute) getOrCreateSession(clientAddr *net.UDPAddr) (*udpSession,
 func (route *UDPRoute) dialBackend() (net.Conn, error) {
 	backendAddr := route.backendAddr()
 
-	// Try direct UDP connection first (works on same Tailnet)
+	// Check if this is a Tailscale IP (100.64.0.0/10 CGNAT range used by Tailscale)
+	// If so, we must use UserDial to route through Tailscale
+	backendIP := net.ParseIP(route.config.Machine.Address)
+	isTailscaleIP := backendIP != nil && backendIP.To4() != nil &&
+		backendIP.To4()[0] == 100 && (backendIP.To4()[1]&0xC0) == 64
+
+	if isTailscaleIP {
+		// Use Tailscale UserDial for Tailscale IPs
+		conn, err := route.client.UserDial(context.Background(), "udp", route.config.Machine.Address, route.config.Machine.Port)
+		if err != nil {
+			return nil, fmt.Errorf("failed to dial backend via Tailscale: %w", err)
+		}
+		return conn, nil
+	}
+
+	// Try direct UDP connection for non-Tailscale addresses
 	conn, err := net.Dial("udp", backendAddr)
 	if err == nil {
 		if udpConn, ok := conn.(*net.UDPConn); ok {
