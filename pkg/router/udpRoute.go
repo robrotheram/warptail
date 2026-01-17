@@ -300,17 +300,23 @@ func (route *UDPRoute) forwardToClient(session *udpSession) {
 	buffer := make([]byte, udpBufferSize)
 	clientKey := session.clientAddr.String()
 
+	utils.Logger.Info("forwardToClient started, waiting for ready signal", "client", clientKey)
+
 	// Wait for first packet before reading responses
 	select {
 	case <-session.ready:
+		utils.Logger.Info("forwardToClient ready, starting read loop", "client", clientKey)
 	case <-route.quit:
+		utils.Logger.Info("forwardToClient quit during ready wait", "client", clientKey)
 		return
 	case <-time.After(udpSessionTimeout):
+		utils.Logger.Info("forwardToClient timeout during ready wait", "client", clientKey)
 		route.removeSession(clientKey)
 		return
 	}
 
 	consecutiveEOFs := 0
+	readAttempts := 0
 
 	for {
 		select {
@@ -321,10 +327,12 @@ func (route *UDPRoute) forwardToClient(session *udpSession) {
 
 		session.proxy.SetReadDeadline(time.Now().Add(udpReadTimeout))
 		n, err := session.proxy.Read(buffer)
+		readAttempts++
 
 		if err != nil {
 			if isTimeout(err) {
 				if session.isExpired(udpSessionTimeout) {
+					utils.Logger.Info("forwardToClient session expired", "client", clientKey, "readAttempts", readAttempts)
 					route.removeSession(clientKey)
 					return
 				}
@@ -335,6 +343,7 @@ func (route *UDPRoute) forwardToClient(session *udpSession) {
 			if err == io.EOF {
 				consecutiveEOFs++
 				if consecutiveEOFs >= 10 && session.isExpired(udpSessionTimeout) {
+					utils.Logger.Info("forwardToClient EOF and expired", "client", clientKey, "eofs", consecutiveEOFs)
 					route.removeSession(clientKey)
 					return
 				}
@@ -342,12 +351,15 @@ func (route *UDPRoute) forwardToClient(session *udpSession) {
 				continue
 			}
 
+			utils.Logger.Error(err, "forwardToClient read error, removing session", "client", clientKey)
 			route.removeSession(clientKey)
 			return
 		}
 
 		consecutiveEOFs = 0
 		session.updateLastActive()
+
+		utils.Logger.Info("Received from backend, forwarding to client", "client", clientKey, "bytes", n)
 
 		_, err = route.listener.WriteToUDP(buffer[:n], session.clientAddr)
 		if err != nil {
