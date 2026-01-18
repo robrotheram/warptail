@@ -45,6 +45,8 @@ func (ctrl *LoadbalancerBuilder) build(routes []utils.RouteConfig, existingPorts
 				"app": "warptail",
 			},
 			Ports: []corev1.ServicePort{},
+			// Use Local to preserve client source IP - required for UDP to work correctly
+			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyLocal,
 		},
 	}
 
