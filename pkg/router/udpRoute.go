@@ -240,20 +240,9 @@ func (route *UDPRoute) getOrCreateSession(clientAddr *net.UDPAddr) (*udpSession,
 }
 
 func (route *UDPRoute) dialBackend() (net.Conn, error) {
-	backendAddr := route.backendAddr()
-
-	// Try direct UDP connection first (works on same Tailnet)
-	conn, err := net.Dial("udp", backendAddr)
-	if err == nil {
-		if udpConn, ok := conn.(*net.UDPConn); ok {
-			udpConn.SetReadBuffer(udpSocketBufferSize)
-			udpConn.SetWriteBuffer(udpSocketBufferSize)
-		}
-		return conn, nil
-	}
 
 	// Fall back to Tailscale UserDial
-	conn, err = route.client.UserDial(context.Background(), "udp", route.config.Machine.Address, route.config.Machine.Port)
+	conn, err := route.client.UserDial(context.Background(), string(route.config.Type), route.config.Machine.Address, route.config.Machine.Port)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial backend: %w", err)
 	}
