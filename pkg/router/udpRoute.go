@@ -16,7 +16,7 @@ const (
 	udpBufferSize        = 65535
 	udpSessionTimeout    = 2 * time.Minute
 	udpSocketBufferSize  = 4 * 1024 * 1024 // 4MB
-	udpReadTimeout       = 100 * time.Millisecond
+	udpReadTimeout       = 10 * time.Millisecond
 	udpHeartbeatInterval = 5 * time.Second
 )
 
@@ -242,22 +242,7 @@ func (route *UDPRoute) getOrCreateSession(clientAddr *net.UDPAddr) (*udpSession,
 func (route *UDPRoute) dialBackend() (net.Conn, error) {
 	backendAddr := route.backendAddr()
 
-	// Check if this is a Tailscale IP (100.64.0.0/10 CGNAT range used by Tailscale)
-	// If so, we must use UserDial to route through Tailscale
-	backendIP := net.ParseIP(route.config.Machine.Address)
-	isTailscaleIP := backendIP != nil && backendIP.To4() != nil &&
-		backendIP.To4()[0] == 100 && (backendIP.To4()[1]&0xC0) == 64
-
-	if isTailscaleIP {
-		// Use Tailscale UserDial for Tailscale IPs
-		conn, err := route.client.UserDial(context.Background(), "udp", route.config.Machine.Address, route.config.Machine.Port)
-		if err != nil {
-			return nil, fmt.Errorf("failed to dial backend via Tailscale: %w", err)
-		}
-		return conn, nil
-	}
-
-	// Try direct UDP connection for non-Tailscale addresses
+	// Try direct UDP connection first (works on same Tailnet)
 	conn, err := net.Dial("udp", backendAddr)
 	if err == nil {
 		if udpConn, ok := conn.(*net.UDPConn); ok {
@@ -300,23 +285,17 @@ func (route *UDPRoute) forwardToClient(session *udpSession) {
 	buffer := make([]byte, udpBufferSize)
 	clientKey := session.clientAddr.String()
 
-	utils.Logger.Info("forwardToClient started, waiting for ready signal", "client", clientKey)
-
 	// Wait for first packet before reading responses
 	select {
 	case <-session.ready:
-		utils.Logger.Info("forwardToClient ready, starting read loop", "client", clientKey)
 	case <-route.quit:
-		utils.Logger.Info("forwardToClient quit during ready wait", "client", clientKey)
 		return
 	case <-time.After(udpSessionTimeout):
-		utils.Logger.Info("forwardToClient timeout during ready wait", "client", clientKey)
 		route.removeSession(clientKey)
 		return
 	}
 
 	consecutiveEOFs := 0
-	readAttempts := 0
 
 	for {
 		select {
@@ -327,12 +306,10 @@ func (route *UDPRoute) forwardToClient(session *udpSession) {
 
 		session.proxy.SetReadDeadline(time.Now().Add(udpReadTimeout))
 		n, err := session.proxy.Read(buffer)
-		readAttempts++
 
 		if err != nil {
 			if isTimeout(err) {
 				if session.isExpired(udpSessionTimeout) {
-					utils.Logger.Info("forwardToClient session expired", "client", clientKey, "readAttempts", readAttempts)
 					route.removeSession(clientKey)
 					return
 				}
@@ -343,7 +320,6 @@ func (route *UDPRoute) forwardToClient(session *udpSession) {
 			if err == io.EOF {
 				consecutiveEOFs++
 				if consecutiveEOFs >= 10 && session.isExpired(udpSessionTimeout) {
-					utils.Logger.Info("forwardToClient EOF and expired", "client", clientKey, "eofs", consecutiveEOFs)
 					route.removeSession(clientKey)
 					return
 				}
@@ -351,7 +327,6 @@ func (route *UDPRoute) forwardToClient(session *udpSession) {
 				continue
 			}
 
-			utils.Logger.Error(err, "forwardToClient read error, removing session", "client", clientKey)
 			route.removeSession(clientKey)
 			return
 		}
@@ -359,12 +334,7 @@ func (route *UDPRoute) forwardToClient(session *udpSession) {
 		consecutiveEOFs = 0
 		session.updateLastActive()
 
-		utils.Logger.Info("Received from backend, forwarding to client", "client", clientKey, "bytes", n)
-
-		_, err = route.listener.WriteToUDP(buffer[:n], session.clientAddr)
-		if err != nil {
-			utils.Logger.Error(err, "failed to forward to client", "client", session.clientAddr, "bytes", n)
-		} else {
+		if _, err = route.listener.WriteToUDP(buffer[:n], session.clientAddr); err == nil {
 			route.data.LogRecived(uint64(n))
 		}
 	}
