@@ -59,8 +59,39 @@ func (r *Router) UpdateTailscale(config utils.TailscaleConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
 	defer cancel()
 	_, err := r.ts.Up(ctx)
+	if err != nil {
+		return err
+	}
 
-	return err
+	// Wait for Tailscale to be fully authenticated and running
+	return r.WaitForTailscale(ctx)
+}
+
+// WaitForTailscale blocks until Tailscale backend state is "Running" or context times out
+func (r *Router) WaitForTailscale(ctx context.Context) error {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for tailscale to authenticate: %w", ctx.Err())
+		case <-ticker.C:
+			c, err := r.ts.LocalClient()
+			if err != nil {
+				continue
+			}
+			status, err := c.Status(ctx)
+			if err != nil {
+				continue
+			}
+			if status.BackendState == "Running" {
+				utils.Logger.Info("Tailscale connected successfully", "hostname", r.ts.Hostname)
+				return nil
+			}
+			utils.Logger.V(1).Info("Waiting for Tailscale authentication", "state", status.BackendState)
+		}
+	}
 }
 
 func (r *Router) GetTailScaleStatus() TailscaleStatus {
@@ -103,4 +134,17 @@ func (r *Router) GetTailScaleConfig() utils.TailscaleConfig {
 		AuthKey:  r.ts.AuthKey,
 		Hostname: r.ts.Hostname,
 	}
+}
+
+func GetTailScaleServerIp(ts *tsnet.Server) (string, error) {
+	client, err := ts.LocalClient()
+	if err != nil {
+		return "", err
+	}
+	status, err := client.Status(context.Background())
+	if err != nil {
+		return "", err
+	}
+	ip := status.Self.TailscaleIPs[0].String()
+	return ip, nil
 }

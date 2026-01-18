@@ -14,7 +14,7 @@ func NewRoute(config utils.RouteConfig, ts *tsnet.Server) (Route, error) {
 	}
 	switch config.Type {
 	case utils.UDP:
-		return NewUDPRoute(config, client), nil
+		return NewUDPRoute(config, ts), nil
 	case utils.TCP:
 		return NewTCPRoute(config, client), nil
 	case utils.HTTP:
