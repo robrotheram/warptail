@@ -211,6 +211,8 @@ func (route *UDPRoute) serve() {
 			_, err := route.listener.WriteTo(data, s.clientAddr)
 			if err != nil {
 				log.Printf("Public write error to %s: %v", s.clientAddr, err)
+			} else {
+				route.data.LogRecived(uint64(len(data)))
 			}
 			return true
 		})
@@ -277,6 +279,8 @@ func (route *UDPRoute) reader() {
 		_, err = route.remote.WriteTo(buf[:n], route.remoteAddr)
 		if err != nil {
 			log.Println("Tailscale write error:", err)
+		} else {
+			route.data.LogSent(uint64(n))
 		}
 	}
 }
