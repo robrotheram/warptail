@@ -82,7 +82,7 @@ export const RouterChart = ({ service }: RouterChartProps) => {
   }, [service.routes])
 
   // Get the stats based on selection
-  const { stats, label } = useMemo(() => {
+  const { stats } = useMemo(() => {
     if (selectedRoute === SUMMARY_VALUE) {
       return {
         stats: aggregateTimeSeries(service.routes),
