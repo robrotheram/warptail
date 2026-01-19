@@ -1,7 +1,36 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactNode } from 'react';
 
+// Mock the API module
+vi.mock('@/lib/api', () => ({
+  getProfile: vi.fn().mockResolvedValue({ id: '1', name: 'Test User', email: 'test@test.com' }),
+}));
+
+// Mock TanStack Router
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => vi.fn(),
+}));
+
+const createTestQueryClient = () => new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      gcTime: 0,
+    },
+  },
+});
+
+const createWrapper = () => {
+  const queryClient = createTestQueryClient();
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>{children}</AuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 describe('AuthContext', () => {
   // Mock sessionStorage
@@ -25,27 +54,39 @@ describe('AuthContext', () => {
   });
 
   it('throws error when useAuth is used outside of AuthProvider', () => {
+    const queryClient = createTestQueryClient();
     try {
-      expect(() =>  renderHook(() => useAuth())).toThrowError("useAuth must be used within an AuthProvider");     
+      expect(() => renderHook(() => useAuth(), {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      })).toThrowError("useAuth must be used within an AuthProvider");     
     } catch (error) {
       console.log("")
     }
-    
   });
 
-  it('initializes with token from sessionStorage', () => {
+  it('initializes with token from sessionStorage', async () => {
     // Setup mock to return a token
     mockSessionStorage.getItem.mockReturnValue('saved-token');
 
     // Render the hook with AuthProvider
     const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+      wrapper: createWrapper(),
     });
 
-    // Check initial state
+    // Wait for the hook to initialize and check token
+    await waitFor(() => {
+      expect(result.current).not.toBeNull();
+    });
+    
     expect(result.current.token).toBe('saved-token');
-    expect(result.current.isAuthenticated).toBe(true);
     expect(mockSessionStorage.getItem).toHaveBeenCalledWith('token');
+
+    // Wait for authentication to resolve (profile query)
+    await waitFor(() => {
+      expect(result.current.isAuthenticated).toBe(true);
+    });
   });
 
   it('initializes with null token when sessionStorage is empty', () => {
@@ -54,7 +95,7 @@ describe('AuthContext', () => {
 
     // Render the hook with AuthProvider
     const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+      wrapper: createWrapper(),
     });
 
     // Check initial state
@@ -62,10 +103,18 @@ describe('AuthContext', () => {
     expect(result.current.isAuthenticated).toBe(false);
   });
 
-  it('successfully logs in and updates sessionStorage', () => {
+  it('successfully logs in and updates sessionStorage', async () => {
+    // Setup mock to return null initially
+    mockSessionStorage.getItem.mockReturnValue(null);
+
     // Render the hook with AuthProvider
     const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+      wrapper: createWrapper(),
+    });
+
+    // Wait for initial render to complete
+    await waitFor(() => {
+      expect(result.current).not.toBeNull();
     });
 
     // Perform login
@@ -73,19 +122,31 @@ describe('AuthContext', () => {
       result.current.login('new-test-token');
     });
 
-    // Check if state and sessionStorage were updated
-    expect(result.current.token).toBe('new-test-token');
-    expect(result.current.isAuthenticated).toBe(true);
+    // Wait for token state to update
+    await waitFor(() => {
+      expect(result.current.token).toBe('new-test-token');
+    });
+    
     expect(mockSessionStorage.setItem).toHaveBeenCalledWith('token', 'new-test-token');
+
+    // Wait for authentication to resolve
+    await waitFor(() => {
+      expect(result.current.isAuthenticated).toBe(true);
+    });
   });
 
-  it('successfully logs out and cleans sessionStorage', () => {
+  it('successfully logs out and cleans sessionStorage', async () => {
     // Setup initial logged-in state
     mockSessionStorage.getItem.mockReturnValue('existing-token');
 
     // Render the hook with AuthProvider
     const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+      wrapper: createWrapper(),
+    });
+
+    // Wait for initial auth to settle
+    await waitFor(() => {
+      expect(result.current.isAuthenticated).toBe(true);
     });
 
     // Perform logout
@@ -99,10 +160,18 @@ describe('AuthContext', () => {
     expect(mockSessionStorage.removeItem).toHaveBeenCalledWith('token');
   });
 
-  it('provides stable references for login and logout functions', () => {
+  it('provides stable references for login and logout functions', async () => {
+    // Setup mock to return a token
+    mockSessionStorage.getItem.mockReturnValue('test-token');
+
     // Render the hook with AuthProvider
     const { result, rerender } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+      wrapper: createWrapper(),
+    });
+
+    // Wait for initial state to settle
+    await waitFor(() => {
+      expect(result.current.token).toBe('test-token');
     });
 
     // Store initial function references

@@ -44,8 +44,10 @@ func (r *Router) Init(config utils.Config) error {
 	return nil
 }
 
-func (r *Router) Reload(config utils.Config) {
-	r.UpdateTailscale(config.Tailscale)
+func (r *Router) Reload(config utils.Config) error {
+	if err := r.UpdateTailscale(config.Tailscale); err != nil {
+		return err
+	}
 	for _, svc := range config.Services {
 		if r.DoesExists(svc.Name) {
 			id := slug.Make(svc.Name)
@@ -60,6 +62,7 @@ func (r *Router) Reload(config utils.Config) {
 			delete(r.Services, key)
 		}
 	}
+	return nil
 }
 
 func (r *Router) DoesExists(name string) bool {

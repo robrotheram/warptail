@@ -1,6 +1,37 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { ProxyStats, TimeSeriesPoint } from "./api"
+import { ProxyStats, Route, RouterStatus, TimeSeriesPoint } from "./api"
+
+export interface ServiceHealthStatus {
+  color: 'green' | 'yellow' | 'red'
+  bgClass: string
+  textClass: string
+  label: string
+}
+
+/**
+ * Computes the health status of a service based on its enabled state and route health.
+ * - Green (Healthy): Service enabled and all routes running with good latency
+ * - Yellow (Degraded): Service enabled but some routes are not responding
+ * - Red (Stopped): Service is disabled
+ */
+export function getServiceHealth(enabled: boolean, routes: Route[]): ServiceHealthStatus {
+  if (!enabled) {
+    return { color: 'red', bgClass: 'bg-red-500', textClass: 'text-red-600', label: 'Stopped' }
+  }
+  
+  // Check if any routes are unhealthy (not running or negative latency)
+  const unhealthyRoutes = routes.filter(route => 
+    route.status !== RouterStatus.RUNNING || 
+    (route.latency !== undefined && route.latency < 0)
+  )
+  
+  if (unhealthyRoutes.length > 0) {
+    return { color: 'yellow', bgClass: 'bg-yellow-500', textClass: 'text-yellow-600', label: 'Degraded' }
+  }
+  
+  return { color: 'green', bgClass: 'bg-green-500', textClass: 'text-green-600', label: 'Healthy' }
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

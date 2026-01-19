@@ -9,7 +9,7 @@ import { Input } from '../ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
-import { formatDuration } from '@/lib/utils'
+import { formatDuration, getServiceHealth } from '@/lib/utils'
 
 export const CreateServiceModel = () => {
   const navigate = useNavigate({ from: `/` })
@@ -106,7 +106,7 @@ export const RouteList = ({ read_only }: RouteListProps) => {
           <TableRow>
             <TableHead>Service Name</TableHead>
             <TableHead>Average Latency</TableHead>
-            <TableHead>Enabled</TableHead>
+            <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
         {data &&
@@ -117,13 +117,19 @@ export const RouteList = ({ read_only }: RouteListProps) => {
                   return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
                 });
                 return sorted.map(svc => {
+                  const health = getServiceHealth(svc.enabled, svc.routes)
                   return <TableRow onClick={() => navigate({ to: `/routes/${svc.id}` })} className='cursor-pointer' key={svc.id}>
                     <TableCell className="font-medium">{svc.name}</TableCell>
                     <TableCell>
                       {svc.enabled && svc.latency ? `${formatDuration(svc.latency)}` : "n/a"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={`${svc.enabled ? "default" : "destructive"}`} className={`${svc.enabled ? "bg-green-700" : "bg-red-700"}`}>{`${svc.enabled ? "Active" : "Inactive"}`}</Badge>
+                      <Badge 
+                        variant="default" 
+                        className={`${health.color === 'green' ? 'bg-green-700' : health.color === 'yellow' ? 'bg-yellow-600' : 'bg-red-700'}`}
+                      >
+                        {health.label}
+                      </Badge>
                     </TableCell>
                   </TableRow>
                 });

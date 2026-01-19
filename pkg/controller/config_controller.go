@@ -76,7 +76,9 @@ func (ctrl *ConfigCtrl) Watch() error {
 						utils.Logger.Info("file modified by an external source", "source", event.Name)
 						ctrl.lastHash = currentHash
 						config, _ := utils.LoadConfig(ctrl.path)
-						ctrl.router.Reload(config)
+						if err := ctrl.router.Reload(config); err != nil {
+							utils.Logger.Error(err, "failed to reload config, tailscale may not be authenticated")
+						}
 					}
 				}
 			case err, ok := <-ctrl.watcher.Errors:

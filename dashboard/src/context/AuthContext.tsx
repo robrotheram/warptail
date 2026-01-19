@@ -1,9 +1,8 @@
 import { getProfile, User } from '@/lib/api';
-import { LoginPage } from '@/LoginPage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
-import React, { createContext, useState, useContext, useMemo, useCallback, useEffect } from 'react';
+import React, { createContext, useState, useContext, useMemo, useCallback, useEffect, useRef } from 'react';
 
 interface AuthContextType {
   token: string | null;
@@ -17,44 +16,48 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
   const [token, setToken] = useState<string | null>(() =>
     sessionStorage.getItem('token')
   );
-  const { data: user, isLoading } = useQuery({
-    queryKey: ['profile'],
+
+  const { data: user, isLoading, isFetching } = useQuery({
+    queryKey: ['profile', token],
     queryFn: () => getProfile(token),
-    retry: false
-  })
-
-
-  useEffect(() => {
-    const checkToken = () => {
-      if (token) {
-        const decodedToken = parseJwt(token);
-        if (decodedToken.exp * 1000 < Date.now()) {
-          logout();
-        }
-      }
-    };
-    const interval = setInterval(checkToken, 1000 * 10);
-    checkToken();
-    return () => clearInterval(interval);
-  }, [token, navigate]);
-
-
-  const login = useCallback((newToken: string) => {
-    sessionStorage.setItem('token', newToken);
-    setToken(newToken);
-    queryClient.invalidateQueries({ queryKey: ['profile'] });
-
-  }, []);
+    enabled: !!token,
+    retry: false,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 10, // 10 minutes
+  });
 
   const logout = useCallback(() => {
     sessionStorage.removeItem('token');
     setToken(null);
-    navigate({ to: '/login' })
+    queryClient.removeQueries({ queryKey: ['profile'] });
+    navigateRef.current({ to: '/login' });
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const checkToken = () => {
+      const decodedToken = parseJwt(token);
+      if (decodedToken && decodedToken.exp * 1000 < Date.now()) {
+        logout();
+      }
+    };
+
+    checkToken();
+    const interval = setInterval(checkToken, 1000 * 10);
+    return () => clearInterval(interval);
+  }, [token, logout]);
+
+  const login = useCallback((newToken: string) => {
+    sessionStorage.setItem('token', newToken);
+    setToken(newToken);
   }, []);
 
   const isAuthenticated = !!user && !!token;
@@ -70,12 +73,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [token, user, isAuthenticated, login, logout]
   );
 
-  if (isLoading) {
-    return <Loader/>
+  // Only show loader on initial load when we have a token
+  if (token && isLoading && !isFetching) {
+    return <Loader />;
   }
+
+  // Show loader while fetching profile for first time with token
+  if (token && isLoading) {
+    return <Loader />;
+  }
+
   return (
     <AuthContext.Provider value={value}>
-      {isAuthenticated ? children : <LoginPage />}
+      {children}
     </AuthContext.Provider>
   );
 };

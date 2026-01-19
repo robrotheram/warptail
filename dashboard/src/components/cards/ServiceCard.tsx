@@ -19,6 +19,7 @@ import { deleteService, getService, Role, Route as RouteInterface, Service, star
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useEffect, useState } from 'react'
+import { getServiceHealth } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { RouteEditCard } from './RouteEditCard'
 import { RouteStatusCard } from './RouteStatusCard'
@@ -143,6 +144,8 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
     return null
   }
 
+  const serviceHealth = getServiceHealth(service.enabled, service.routes)
+
   return (
     <div className="container mx-auto p-2 space-y-6">
       <div className={`grid grid-cols-1 gap-0 space-y-6 md:gap-6 md:space-y-0 ${user?.role === Role.ADMIN && "md:grid-cols-3 "}`}>
@@ -169,9 +172,9 @@ export const ServiceCard = ({ id, edit }: ServiceCardProps) => {
                     </div>
                     <div className="w-px h-6 bg-border"></div>
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${service.enabled ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                      <span className={`text-lg font-medium ${service.enabled ? 'text-green-600' : 'text-red-600'}`}>
-                        {service.enabled ? 'Running' : 'Stopped'}
+                      <div className={`w-2 h-2 rounded-full ${serviceHealth.bgClass}`}></div>
+                      <span className={`text-lg font-medium ${serviceHealth.textClass}`}>
+                        {serviceHealth.label}
                       </span>
                     </div>
                   </div>
