@@ -193,7 +193,7 @@ func (route *TCPRoute) handleConnection(clientConn net.Conn, connID string) {
 	backendAddr := route.backendAddr()
 	backendConn, err := route.client.Dial(route.ctx, "tcp", backendAddr)
 	if err != nil {
-		log.Printf("Failed to connect to backend %s: %v", backendAddr, err)
+		utils.Logger.Error(err, "remote connection failed")
 		return
 	}
 	defer backendConn.Close()
@@ -283,12 +283,10 @@ func (route *TCPRoute) measureLatency() {
 	backendAddr := route.backendAddr()
 
 	start := time.Now()
-	conn, err := net.DialTimeout("tcp", backendAddr, time.Second)
-
-	route.latencyMu.Lock()
-	defer route.latencyMu.Unlock()
-
+	conn, err := route.client.Dial(route.ctx, "tcp", backendAddr)
 	if err != nil {
+		route.latencyMu.Lock()
+		defer route.latencyMu.Unlock()
 		route.latency = -1
 		return
 	}
