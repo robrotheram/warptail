@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -301,17 +302,13 @@ func (route *UDPRoute) runHeartbeat() {
 }
 
 func (route *UDPRoute) measureLatency() {
-	route.mu.RLock()
 	backendAddr := route.backendAddr()
-	route.mu.RUnlock()
 
 	start := time.Now()
-	conn, err := net.DialTimeout("udp", backendAddr, time.Second)
-
-	route.latencyMu.Lock()
-	defer route.latencyMu.Unlock()
-
+	conn, err := route.client.Dial(context.Background(), "udp", backendAddr)
 	if err != nil {
+		route.latencyMu.Lock()
+		defer route.latencyMu.Unlock()
 		route.latency = -1
 		return
 	}

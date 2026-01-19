@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useAuth } from './context/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button , buttonVariants} from '@/components/ui/button'
 import { useMutation } from '@tanstack/react-query'
-import { login as api, AUTH_URL, getProfile, Login, Role } from "./lib/api"
+import { login as api, AUTH_URL, Login, Role } from "./lib/api"
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { AlertCircle, Fingerprint } from 'lucide-react'
 import { Alert, AlertTitle, AlertDescription } from './components/ui/alert'
@@ -48,24 +48,15 @@ export const LoginPage: React.FC = () => {
   const [userLogin, setUserLogin] = useState<Login>({ username: "", password: "" })
   const [alert, setAlert] = useState<string>()
   const { auth_type, site_name, site_logo } = useConfig()
-  const { login } = useAuth()
+  const { login, isAuthenticated } = useAuth()
   const navigate = useNavigate()
   
-  // Use ref for token to avoid stale closure issues in mutation callbacks
-  const tokenRef = useRef<string>()
-
-  const profile = useMutation({
-    mutationFn: getProfile,
-    onSuccess: () => {
-      if (tokenRef.current) {
-        login(tokenRef.current)
-        navigate({ to: '/' })
-      }
-    },
-    onError: () => {
-      setAlert("Permission Denied")
+  // Redirect to home if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate({ to: '/' })
     }
-  })
+  }, [isAuthenticated, navigate])
 
   const authenticate = useMutation({
     mutationFn: api,
@@ -75,8 +66,9 @@ export const LoginPage: React.FC = () => {
         // Safe redirect - only to same-origin paths
         window.location.href = `${safeNext}${safeNext.includes('?') ? '&' : '?'}token=${encodeURIComponent(data.authorization_token)}`
       } else if (data.role === Role.ADMIN) {
-        tokenRef.current = data.authorization_token
-        profile.mutate(data.authorization_token)
+        // Just set the token - the useEffect above will handle navigation
+        // once the AuthProvider's profile query completes
+        login(data.authorization_token)
       } else {
         setAlert("Permission Denied")
       }
@@ -103,10 +95,11 @@ export const LoginPage: React.FC = () => {
   useEffect(() => {
     const tokenQuery = searchParams.token;
     if (tokenQuery) {
-      tokenRef.current = tokenQuery
-      profile.mutate(tokenQuery)
+      // Token from URL (e.g., from OpenID callback) - just login with it
+      // The isAuthenticated useEffect will handle navigation
+      login(tokenQuery)
     }
-  }, [searchParams.token]);
+  }, [searchParams.token, login]);
 
 
   return (
