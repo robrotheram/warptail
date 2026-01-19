@@ -9,7 +9,7 @@ resources:
 images:
 - name: app-image
   newName: ghcr.io/robrotheram/warptail
-  newTag: sha-0fdd063
+  newTag: sha-273d37a
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: your-namespace
