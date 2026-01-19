@@ -68,7 +68,6 @@ export interface Service {
     enabled: boolean
     routes: Route[]
     latency: number
-    stats: TimeSeries
 }
 
 export interface ProxyRule {
@@ -106,6 +105,7 @@ export interface Route {
     status?: RouterStatus
     latency?: number
     proxy_settings?: ProxySettings
+    stats?: TimeSeries
 }
 
 export interface Machine {

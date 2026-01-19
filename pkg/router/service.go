@@ -96,18 +96,18 @@ func (svc *Service) updateNewRoutes(existingRoutes []Route, newRoutes []utils.Ro
 }
 
 type ServiceStatus struct {
-	Id      string               `json:"id"`
-	Name    string               `json:"name"`
-	Enabled bool                 `json:"enabled"`
-	Routes  []RouteStatus        `json:"routes"`
-	Latency int64                `json:"latency,omitempty"`
-	Stats   utils.TimeSeriesData `json:"stats,omitempty"`
+	Id      string        `json:"id"`
+	Name    string        `json:"name"`
+	Enabled bool          `json:"enabled"`
+	Routes  []RouteStatus `json:"routes"`
+	Latency int64         `json:"latency,omitempty"`
 }
 
 type RouteStatus struct {
 	utils.RouteConfig
-	Status  RouterStatus `json:"status,omitempty"`
-	Latency int64        `json:"latency,omitempty"`
+	Status  RouterStatus         `json:"status,omitempty"`
+	Latency int64                `json:"latency,omitempty"`
+	Stats   utils.TimeSeriesData `json:"stats,omitempty"`
 }
 
 func (svc *Service) Status(full bool) ServiceStatus {
@@ -118,22 +118,17 @@ func (svc *Service) Status(full bool) ServiceStatus {
 		Routes:  []RouteStatus{},
 	}
 	totalLatency := time.Duration(0)
-	if full {
-		status.Stats = utils.TimeSeriesData{
-			Points: []utils.DataPoint{},
-			Total:  utils.ProxyStats{},
-		}
-	}
+
 	for _, routes := range svc.Routes {
 		rStatus := RouteStatus{
 			RouteConfig: routes.Config(),
 			Status:      routes.Status(),
 			Latency:     routes.Ping().Nanoseconds(),
 		}
-		totalLatency += routes.Ping()
 		if full {
-			status.Stats = utils.CombineTimeSeriesData(status.Stats, routes.Stats())
+			rStatus.Stats = routes.Stats()
 		}
+		totalLatency += routes.Ping()
 		status.Routes = append(status.Routes, rStatus)
 	}
 	if len(svc.Routes) > 0 {

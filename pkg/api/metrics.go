@@ -87,10 +87,15 @@ func (metrics *ServiceMetrics) Update(servics []router.Service) {
 			enabled = 1.0
 		}
 
+		combinedStats := utils.TimeSeriesData{}
+		for _, route := range service.Routes {
+			combinedStats = utils.CombineTimeSeriesData(combinedStats, route.Stats)
+		}
+
 		metrics.ServiceEnabled.WithLabelValues(service.Name).Set(enabled)
 		metrics.ServiceLatency.WithLabelValues(service.Name).Set(float64(service.Latency))
-		metrics.TotalSent.WithLabelValues(service.Name).Set(float64(service.Stats.Total.Sent))
-		metrics.TotalReceived.WithLabelValues(service.Name).Set(float64(service.Stats.Total.Received))
+		metrics.TotalSent.WithLabelValues(service.Name).Set(float64(combinedStats.Total.Sent))
+		metrics.TotalReceived.WithLabelValues(service.Name).Set(float64(combinedStats.Total.Received))
 
 		for _, route := range service.Routes {
 			statusValue := 0.0
