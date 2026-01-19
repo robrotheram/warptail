@@ -202,24 +202,22 @@ func (route *TCPRoute) handleConnection(clientConn net.Conn, connID string) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// Client -> Backend
+	// Client -> Backend (sent data)
 	go func() {
 		defer wg.Done()
-		sent := route.copyWithStats(backendConn, clientConn)
-		route.data.LogSent(uint64(sent))
+		route.copyWithStats(backendConn, clientConn, true)
 	}()
 
-	// Backend -> Client
+	// Backend -> Client (received data)
 	go func() {
 		defer wg.Done()
-		received := route.copyWithStats(clientConn, backendConn)
-		route.data.LogRecived(uint64(received))
+		route.copyWithStats(clientConn, backendConn, false)
 	}()
 
 	wg.Wait()
 }
 
-func (route *TCPRoute) copyWithStats(dst, src net.Conn) int64 {
+func (route *TCPRoute) copyWithStats(dst, src net.Conn, isSent bool) int64 {
 	buf := make([]byte, tcpBufferSize)
 	var totalBytes int64
 
@@ -235,6 +233,12 @@ func (route *TCPRoute) copyWithStats(dst, src net.Conn) int64 {
 			written, writeErr := dst.Write(buf[:n])
 			if written > 0 {
 				totalBytes += int64(written)
+				// Log stats in real-time as data flows
+				if isSent {
+					route.data.LogSent(uint64(written))
+				} else {
+					route.data.LogRecived(uint64(written))
+				}
 			}
 			if writeErr != nil {
 				return totalBytes

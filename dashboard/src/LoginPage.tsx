@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from './context/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -11,16 +11,32 @@ import { AlertCircle, Fingerprint } from 'lucide-react'
 import { Alert, AlertTitle, AlertDescription } from './components/ui/alert'
 import { useConfig } from './context/ConfigContext'
 
-
-
 export const LoginPage: React.FC = () => {
-  const urlParams = new URLSearchParams(window.location.search);
+  // Memoize URL params to prevent recreation on every render
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  
   const [userLogin, setUserLogin] = useState<Login>({ username: "", password: "" })
-  const [token, setToken] = useState<string>()
   const [alert, setAlert] = useState<string>()
   const { auth_type, site_name, site_logo } = useConfig()
   const { login } = useAuth()
   const navigate = useNavigate()
+  
+  // Use ref for token to avoid stale closure issues in mutation callbacks
+  const tokenRef = useRef<string>()
+
+  const profile = useMutation({
+    mutationFn: getProfile,
+    onSuccess: () => {
+      if (tokenRef.current) {
+        login(tokenRef.current)
+        navigate({ to: '/' })
+      }
+    },
+    onError: () => {
+      setAlert("Permission Denied")
+    }
+  })
+
   const authenticate = useMutation({
     mutationFn: api,
     onSuccess: (data) => {
@@ -28,45 +44,42 @@ export const LoginPage: React.FC = () => {
       if (next !== null) {
         window.location.href = `${next}?token=${data.authorization_token}`
       } else if (data.role === Role.ADMIN) {
-        setToken(data.authorization_token)
+        tokenRef.current = data.authorization_token
         profile.mutate(data.authorization_token)
+      } else {
+        setAlert("Permission Denied")
       }
-      setAlert("Permission Denied")
     },
     onError: () => {
       setAlert('Invalid username or password')
     }
   })
 
-  const profile = useMutation({
-    mutationFn: getProfile,
-    onSuccess: () => {
-      if (token) {
-          login(token)
-          navigate({ to: '/' })
-      }
-    },
-    onError: () => {
-      setAlert("Permission Denied")
-    }
-  })
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
+    setAlert(undefined)
     authenticate.mutate(userLogin)
-  }
+  }, [userLogin, authenticate])
+
+  const handleUsernameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setUserLogin(prev => ({ ...prev, username: e.target.value }))
+  }, [])
+
+  const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setUserLogin(prev => ({ ...prev, password: e.target.value }))
+  }, [])
 
   useEffect(() => {
     const tokenQuery = urlParams.get('token');
     if (tokenQuery !== null) {
-      setToken(tokenQuery)
+      tokenRef.current = tokenQuery
       profile.mutate(tokenQuery)
     }
-  }, []);
+  }, [urlParams]);
 
 
   return (
-    <Card className="col-span-2 my-10 mx-auto max-w-screen-sm">
+    <Card className="col-span-2 my-10 mx-auto max-w-screen-2xl w-full ">
       <CardHeader className="pb-2 flex flex-row items-center justify-center gap-4">
         <img alt={site_name?site_name:"WarpTail"} src={site_logo?site_logo:'/logo.png'} className='w-20' />
         <CardTitle className="text-3xl">{site_name?site_name:"WarpTail"}</CardTitle>
@@ -79,7 +92,7 @@ export const LoginPage: React.FC = () => {
             <Input
               type="text"
               value={userLogin.username}
-              onChange={(e) => setUserLogin({ ...userLogin, username: e.target.value })}
+              onChange={handleUsernameChange}
             />
           </div>
           <div>
@@ -87,7 +100,7 @@ export const LoginPage: React.FC = () => {
             <Input
               type="password"
               value={userLogin.password}
-              onChange={(e) => setUserLogin({ ...userLogin, password: e.target.value })}
+              onChange={handlePasswordChange}
             />
           </div>
 
