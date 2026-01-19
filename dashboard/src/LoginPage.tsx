@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuth } from './context/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -6,14 +6,44 @@ import { Input } from '@/components/ui/input'
 import { Button , buttonVariants} from '@/components/ui/button'
 import { useMutation } from '@tanstack/react-query'
 import { login as api, AUTH_URL, getProfile, Login, Role } from "./lib/api"
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { AlertCircle, Fingerprint } from 'lucide-react'
 import { Alert, AlertTitle, AlertDescription } from './components/ui/alert'
 import { useConfig } from './context/ConfigContext'
 
+/**
+ * Validates and sanitizes a redirect URL to prevent open redirect attacks.
+ * Only allows relative paths or same-origin URLs.
+ */
+function getSafeRedirectUrl(url: string | null): string | null {
+  if (!url) return null
+  
+  try {
+    // Check if it's a relative path (starts with /)
+    if (url.startsWith('/') && !url.startsWith('//')) {
+      // Ensure it doesn't contain protocol-relative URLs or other tricks
+      const decoded = decodeURIComponent(url)
+      if (decoded.startsWith('/') && !decoded.startsWith('//') && !decoded.includes('://')) {
+        return url
+      }
+      return null
+    }
+    
+    // Parse as absolute URL and check if same origin
+    const parsed = new URL(url, window.location.origin)
+    if (parsed.origin === window.location.origin) {
+      return parsed.pathname + parsed.search + parsed.hash
+    }
+    
+    return null
+  } catch {
+    return null
+  }
+}
+
 export const LoginPage: React.FC = () => {
-  // Memoize URL params to prevent recreation on every render
-  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  // Use TanStack Router's useSearch for type-safe URL params
+  const searchParams = useSearch({ strict: false }) as { next?: string; token?: string }
   
   const [userLogin, setUserLogin] = useState<Login>({ username: "", password: "" })
   const [alert, setAlert] = useState<string>()
@@ -40,9 +70,10 @@ export const LoginPage: React.FC = () => {
   const authenticate = useMutation({
     mutationFn: api,
     onSuccess: (data) => {
-      const next = urlParams.get('next');
-      if (next !== null) {
-        window.location.href = `${next}?token=${data.authorization_token}`
+      const safeNext = getSafeRedirectUrl(searchParams.next ?? null);
+      if (safeNext !== null) {
+        // Safe redirect - only to same-origin paths
+        window.location.href = `${safeNext}${safeNext.includes('?') ? '&' : '?'}token=${encodeURIComponent(data.authorization_token)}`
       } else if (data.role === Role.ADMIN) {
         tokenRef.current = data.authorization_token
         profile.mutate(data.authorization_token)
@@ -70,12 +101,12 @@ export const LoginPage: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    const tokenQuery = urlParams.get('token');
-    if (tokenQuery !== null) {
+    const tokenQuery = searchParams.token;
+    if (tokenQuery) {
       tokenRef.current = tokenQuery
       profile.mutate(tokenQuery)
     }
-  }, [urlParams]);
+  }, [searchParams.token]);
 
 
   return (
@@ -133,10 +164,13 @@ export const LoginPage: React.FC = () => {
 
 const OpenIDButton = () => {
   const { auth_name } = useConfig()
-  const urlParams = new URLSearchParams(window.location.search);
-  const next = urlParams.get('next') ?? String(window.location);
+  const searchParams = useSearch({ strict: false }) as { next?: string }
+  
+  // Only use safe redirect URLs for the next parameter
+  const safeNext = getSafeRedirectUrl(searchParams.next ?? null)
+  const nextParam = safeNext ?? window.location.pathname
 
-  return <a className={buttonVariants({ variant: "outline" }) + " w-full"} href={`${AUTH_URL}/login?next=${next}`}>
+  return <a className={buttonVariants({ variant: "outline" }) + " w-full"} href={`${AUTH_URL}/login?next=${encodeURIComponent(nextParam)}`}>
     <Fingerprint></Fingerprint>
     Login with {auth_name}
   </a>
