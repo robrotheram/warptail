@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
 	"warptail/pkg/utils"
 
+	"tailscale.com/tailcfg"
 	tailscale "tailscale.com/tsnet"
 )
 
@@ -301,19 +303,33 @@ func (route *UDPRoute) runHeartbeat() {
 	}
 }
 
-func (route *UDPRoute) measureLatency() {
-	backendAddr := route.backendAddr()
+// Since UDP is connectionless, we  measureLatency pings the backend machine to measure latency
 
-	start := time.Now()
-	conn, err := route.client.Dial(context.Background(), "udp", backendAddr)
+func (route *UDPRoute) measureLatency() {
+	c, err := route.client.LocalClient()
+	route.latencyMu.Lock()
+	defer route.latencyMu.Unlock()
+
 	if err != nil {
-		route.latencyMu.Lock()
-		defer route.latencyMu.Unlock()
 		route.latency = -1
 		return
 	}
-	conn.Close()
-	route.latency = time.Since(start)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ip, err := netip.ParseAddr(route.config.Machine.Address)
+	if err != nil {
+		route.latency = -1
+		return
+	}
+
+	pr, err := c.Ping(ctx, ip, tailcfg.PingTSMP)
+	if err != nil {
+		route.latency = -1
+		return
+	}
+	route.latency = time.Duration(pr.LatencySeconds * float64(time.Second))
 }
 
 func (route *UDPRoute) Ping() time.Duration {
