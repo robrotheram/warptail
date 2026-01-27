@@ -16,6 +16,7 @@ import { Route as UsersIndexRouteImport } from './routes/users/index'
 
 const SettingsLazyRouteImport = createFileRoute('/settings')()
 const ProfileLazyRouteImport = createFileRoute('/profile')()
+const PasswordResetLazyRouteImport = createFileRoute('/password-reset')()
 const LoginLazyRouteImport = createFileRoute('/login')()
 const IndexLazyRouteImport = createFileRoute('/')()
 const RoutesIndexLazyRouteImport = createFileRoute('/routes/')()
@@ -34,6 +35,13 @@ const ProfileLazyRoute = ProfileLazyRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/profile.lazy').then((d) => d.Route))
+const PasswordResetLazyRoute = PasswordResetLazyRouteImport.update({
+  id: '/password-reset',
+  path: '/password-reset',
+  getParentRoute: () => rootRouteImport,
+} as any).lazy(() =>
+  import('./routes/password-reset.lazy').then((d) => d.Route),
+)
 const LoginLazyRoute = LoginLazyRouteImport.update({
   id: '/login',
   path: '/login',
@@ -78,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexLazyRoute
   '/404': typeof R404Route
   '/login': typeof LoginLazyRoute
+  '/password-reset': typeof PasswordResetLazyRoute
   '/profile': typeof ProfileLazyRoute
   '/settings': typeof SettingsLazyRoute
   '/users': typeof UsersIndexRoute
@@ -89,6 +98,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexLazyRoute
   '/404': typeof R404Route
   '/login': typeof LoginLazyRoute
+  '/password-reset': typeof PasswordResetLazyRoute
   '/profile': typeof ProfileLazyRoute
   '/settings': typeof SettingsLazyRoute
   '/users': typeof UsersIndexRoute
@@ -101,6 +111,7 @@ export interface FileRoutesById {
   '/': typeof IndexLazyRoute
   '/404': typeof R404Route
   '/login': typeof LoginLazyRoute
+  '/password-reset': typeof PasswordResetLazyRoute
   '/profile': typeof ProfileLazyRoute
   '/settings': typeof SettingsLazyRoute
   '/users/': typeof UsersIndexRoute
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
     | '/'
     | '/404'
     | '/login'
+    | '/password-reset'
     | '/profile'
     | '/settings'
     | '/users'
@@ -125,6 +137,7 @@ export interface FileRouteTypes {
     | '/'
     | '/404'
     | '/login'
+    | '/password-reset'
     | '/profile'
     | '/settings'
     | '/users'
@@ -136,6 +149,7 @@ export interface FileRouteTypes {
     | '/'
     | '/404'
     | '/login'
+    | '/password-reset'
     | '/profile'
     | '/settings'
     | '/users/'
@@ -148,6 +162,7 @@ export interface RootRouteChildren {
   IndexLazyRoute: typeof IndexLazyRoute
   R404Route: typeof R404Route
   LoginLazyRoute: typeof LoginLazyRoute
+  PasswordResetLazyRoute: typeof PasswordResetLazyRoute
   ProfileLazyRoute: typeof ProfileLazyRoute
   SettingsLazyRoute: typeof SettingsLazyRoute
   UsersIndexRoute: typeof UsersIndexRoute
@@ -170,6 +185,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileLazyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/password-reset': {
+      id: '/password-reset'
+      path: '/password-reset'
+      fullPath: '/password-reset'
+      preLoaderRoute: typeof PasswordResetLazyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -228,6 +250,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexLazyRoute: IndexLazyRoute,
   R404Route: R404Route,
   LoginLazyRoute: LoginLazyRoute,
+  PasswordResetLazyRoute: PasswordResetLazyRoute,
   ProfileLazyRoute: ProfileLazyRoute,
   SettingsLazyRoute: SettingsLazyRoute,
   UsersIndexRoute: UsersIndexRoute,

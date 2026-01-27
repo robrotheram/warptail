@@ -2,6 +2,7 @@ import { createRootRoute, Outlet, useRouterState } from '@tanstack/react-router'
 import { HeaderNav, SideNav } from "../Nav"
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ConfigProvider } from '@/context/ConfigContext';
+import { Banner } from '@/components/banner';
 
 const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
     const { isAuthenticated } = useAuth();
@@ -18,11 +19,15 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
     return (
         <div className="flex min-h-screen w-full">
             <SideNav />
-            <div className="flex flex-1 flex-col sm:gap-4 sm:py-4 sm:pl-14">
+            <div className="flex flex-1 flex-col sm:pl-14">
                 <HeaderNav />
-                <main className="flex-1 p-4 sm:px-6 sm:py-0">
-                    {children}
-                </main>
+                <div className="flex flex-1 flex-col">
+                    <Banner />
+                    <main className="flex-1 p-4 sm:px-6 sm:py-6">
+                        {children}
+                    </main>
+                </div>
+                
             </div>
         </div>
     );
@@ -31,9 +36,10 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
 const RootLayout = () => {
     const routerState = useRouterState();
     const isLoginPage = routerState.location.pathname === '/login';
+    const isPasswordResetPage = routerState.location.pathname === '/password-reset';
 
-    // For login page, render with AuthProvider but without the full layout
-    if (isLoginPage) {
+    // For login page and password reset page, render with AuthProvider but without the full layout
+    if (isLoginPage || isPasswordResetPage) {
         return (
             <ConfigProvider>
                 <AuthProvider>

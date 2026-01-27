@@ -21,16 +21,12 @@ func (oidc *OIDCProvider) validate() error {
 }
 
 type BasicProvider struct {
-	Email    string `yaml:"email,omitempty"`
-	Password string `yaml:"password"`
+	Email string `yaml:"email,omitempty"`
 }
 
 func (basic *BasicProvider) validate() error {
 	if basic.Email == "" {
 		return fmt.Errorf("email is required for basic provider")
-	}
-	if basic.Password == "" {
-		return fmt.Errorf("password is required for basic provider")
 	}
 	return nil
 }

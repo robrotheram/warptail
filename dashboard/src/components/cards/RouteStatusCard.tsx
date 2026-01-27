@@ -46,9 +46,18 @@ export const RouteStatusCard = ({ route }: RouteCardProps) => {
           }
         </div>
         <div className='col-span-3'>{route.machine.address}:{route.machine.port}</div>
-        <div className='col-span-2 flex gap-2'>
-          <Activity className={`h-5 w-5 ${isActive(route) ? 'text-green-500' : 'text-red-500'}`} />
-          {isActive(route) && `${formatDuration(route.latency)}`}
+        <div className="col-span-2 flex flex-col gap-1 text-sm text-muted-foreground group">
+          <div className="flex gap-2 grow items-center whitespace-nowrap">
+            <Activity className={`h-5 w-5 ${isActive(route) ? 'text-green-500' : 'text-red-500'}`} />
+            {isActive(route) && formatDuration(route.latency)}              
+          </div>
+          <span className="hidden group-hover:block">
+          {route.type === RouterType.UDP && (
+              <span className="text-xs text-muted-foreground">
+                UDP only measures the server ping; it cannot measure service latency.
+              </span>
+            )}
+          </span>
         </div>
         <Badge
           variant={

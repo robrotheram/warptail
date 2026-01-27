@@ -8,6 +8,7 @@ interface AuthContextType {
   token: string | null;
   user?: User;
   isAuthenticated: boolean;
+  requiresPasswordReset: boolean;
   login: (newToken: string) => void;
   logout: () => void;
 }
@@ -61,16 +62,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const isAuthenticated = !!user && !!token;
+  const requiresPasswordReset = !!user?.password_reset;
 
   const value = useMemo(
     () => ({
       token,
       user,
       isAuthenticated,
+      requiresPasswordReset,
       login,
       logout,
     }),
-    [token, user, isAuthenticated, login, logout]
+    [token, user, isAuthenticated, requiresPasswordReset, login, logout]
   );
 
   // Only show loader on initial load when we have a token

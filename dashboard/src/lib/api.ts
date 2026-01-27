@@ -35,6 +35,7 @@ export interface TS_STATUS {
     nodes: TailsaleNode[]
     hostname: string
     key_expiry: Date | null
+    auth_url?: string
 }
 
 export interface Config {
@@ -154,6 +155,7 @@ export interface User {
     email: string
     role?: Role
     created_at?: Date
+    password_reset?: boolean
 }
 
 export interface LoginToken {

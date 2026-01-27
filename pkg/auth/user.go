@@ -20,7 +20,10 @@ func NewUserStore(db *bun.DB, config *utils.BasicProvider) *Users {
 		db: db,
 	}
 	if config != nil {
-		store.CreateAdminUser(config)
+		err := store.CreateAdminUser(config)
+		if err != nil {
+			utils.Logger.Error(err, "Failed to create admin user")
+		}
 	}
 	return &store
 }
@@ -38,6 +41,7 @@ type User struct {
 	Password      string    `bun:",notnull" json:"password,omitempty"`
 	Type          string    `bun:",notnull" json:"type"`
 	Role          Role      `bun:",notnull" json:"role"`
+	PasswordReset bool      `bun:",nullzero" json:"password_reset,omitempty"`
 	CreatedAt     time.Time `bun:",default:current_timestamp" json:"created_at"`
 	bun.BaseModel `bun:"table:users,alias:u"`
 }
@@ -60,12 +64,13 @@ func (user *User) HashPassword() error {
 
 func (user *User) Sanatize() User {
 	return User{
-		ID:        user.ID,
-		Name:      user.Name,
-		Email:     user.Email,
-		Type:      user.Type,
-		Role:      user.Role,
-		CreatedAt: user.CreatedAt,
+		ID:            user.ID,
+		Name:          user.Name,
+		Email:         user.Email,
+		Type:          user.Type,
+		Role:          user.Role,
+		CreatedAt:     user.CreatedAt,
+		PasswordReset: user.PasswordReset,
 	}
 }
 
@@ -82,6 +87,7 @@ func (store *Users) Update(user User, id string, ctx context.Context) error {
 	}
 	existingUser.Email = user.Email
 	existingUser.Role = user.Role
+	existingUser.PasswordReset = false
 
 	if len(user.Password) > 0 {
 		existingUser.Password = user.Password
@@ -121,6 +127,12 @@ func (store *Users) FindByEamil(email string, ctx context.Context) (User, error)
 	return user, err
 }
 
+func (store *Users) ListAdminUsers(ctx context.Context) ([]User, error) {
+	var users []User
+	err := store.db.NewSelect().Model(&users).Where("role = ?", ADMIN).Scan(ctx)
+	return users, err
+}
+
 func (store *Users) FindByID(id string, ctx context.Context) (User, error) {
 	var user User
 	err := store.db.NewSelect().Model(&user).Where("id = ?", id).Scan(context.Background())
@@ -128,21 +140,24 @@ func (store *Users) FindByID(id string, ctx context.Context) (User, error) {
 }
 
 func (store *Users) CreateAdminUser(config *utils.BasicProvider) error {
-	admin := User{
-		ID:       uuid.New(),
-		Username: "admin",
-		Name:     "WarpTail Admin",
-		Email:    config.Email,
-		Type:     "internal",
-		Role:     ADMIN,
-		Password: config.Password,
-	}
 
-	_, err := store.FindByEamil(admin.Email, context.Background())
-	if err == nil {
+	adminUsers, err := store.ListAdminUsers(context.Background())
+	if err == nil && len(adminUsers) > 0 {
 		return nil
 	}
-	utils.Logger.Info("New admin user created password", "password", config.Password)
+
+	admin := User{
+		ID:            uuid.New(),
+		Username:      "admin",
+		Name:          "WarpTail Admin",
+		Email:         config.Email,
+		Type:          "internal",
+		Role:          ADMIN,
+		Password:      "changeme",
+		PasswordReset: true,
+	}
+
+	utils.Logger.Info("New admin user created password", "password", "changeme")
 	admin.HashPassword()
 	_, err = store.db.NewInsert().Model(&admin).Exec(context.Background())
 	return err

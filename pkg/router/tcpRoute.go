@@ -283,7 +283,9 @@ func (route *TCPRoute) measureLatency() {
 	backendAddr := route.backendAddr()
 
 	start := time.Now()
-	conn, err := route.client.Dial(route.ctx, "tcp", backendAddr)
+	dialCtx, cancel := context.WithTimeout(route.ctx, 5*time.Second)
+	defer cancel()
+	conn, err := route.client.Dial(dialCtx, "tcp", backendAddr)
 	if err != nil {
 		route.latencyMu.Lock()
 		defer route.latencyMu.Unlock()

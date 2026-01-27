@@ -15,6 +15,7 @@ type TailscaleStatus struct {
 	Peers     []TailscalePeers `json:"nodes"`
 	HostName  string           `json:"hostname"`
 	KeyExpiry *time.Time       `json:"key_expiry"`
+	AuthURL   string           `json:"auth_url,omitempty"`
 }
 
 type TailscalePeers struct {
@@ -120,6 +121,7 @@ func (r *Router) GetTailScaleStatus() TailscaleStatus {
 		Version:   status.Version,
 		State:     status.BackendState,
 		Peers:     nodes,
+		AuthURL:   status.AuthURL,
 	}
 }
 

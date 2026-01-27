@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useAuth } from './context/AuthContext'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Button , buttonVariants} from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { useMutation } from '@tanstack/react-query'
 import { login as api, AUTH_URL, Login, Role } from "./lib/api"
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { AlertCircle, Fingerprint } from 'lucide-react'
+import { AlertCircle, Fingerprint, Loader2, Lock, Mail } from 'lucide-react'
 import { Alert, AlertTitle, AlertDescription } from './components/ui/alert'
 import { useConfig } from './context/ConfigContext'
 
@@ -48,15 +48,19 @@ export const LoginPage: React.FC = () => {
   const [userLogin, setUserLogin] = useState<Login>({ username: "", password: "" })
   const [alert, setAlert] = useState<string>()
   const { auth_type, site_name, site_logo } = useConfig()
-  const { login, isAuthenticated } = useAuth()
+  const { login, isAuthenticated, requiresPasswordReset } = useAuth()
   const navigate = useNavigate()
   
-  // Redirect to home if already authenticated
+  // Redirect to home if already authenticated, or to password reset if needed
   useEffect(() => {
     if (isAuthenticated) {
-      navigate({ to: '/' })
+      if (requiresPasswordReset) {
+        navigate({ to: '/password-reset' })
+      } else {
+        navigate({ to: '/' })
+      }
     }
-  }, [isAuthenticated, navigate])
+  }, [isAuthenticated, requiresPasswordReset, navigate])
 
   const authenticate = useMutation({
     mutationFn: api,
@@ -103,54 +107,100 @@ export const LoginPage: React.FC = () => {
 
 
   return (
-    <Card className="col-span-2 my-10 mx-auto max-w-screen-2xl w-full ">
-      <CardHeader className="pb-2 flex flex-row items-center justify-center gap-4">
-        <img alt={site_name?site_name:"WarpTail"} src={site_logo?site_logo:'/logo.png'} className='w-20' />
-        <CardTitle className="text-3xl">{site_name?site_name:"WarpTail"}</CardTitle>
-      </CardHeader>
-      <CardContent className='space-y-4'>
-
-        <form onSubmit={handleSubmit} className='flex flex-col space-y-4'>
-          <div>
-            <Label>Email: </Label>
-            <Input
-              type="text"
-              value={userLogin.username}
-              onChange={handleUsernameChange}
-            />
+    <div className="w-full max-w-md mx-auto px-4">
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="space-y-4 pb-6">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="p-3 rounded-full bg-primary/10">
+              <img 
+                alt={site_name ? site_name : "WarpTail"} 
+                src={site_logo ? site_logo : '/logo.png'} 
+                className='w-16 h-16 object-contain' 
+              />
+            </div>
+            <div className="text-center space-y-1">
+              <CardTitle className="text-2xl font-bold">{site_name ? site_name : "WarpTail"}</CardTitle>
+              <CardDescription>Sign in to your account to continue</CardDescription>
+            </div>
           </div>
-          <div>
-            <Label>Password: </Label>
-            <Input
-              type="password"
-              value={userLogin.password}
-              onChange={handlePasswordChange}
-            />
-          </div>
-
-          {
-            alert && <Alert className='bg-red-800 border-red-900 rounded-sm'>
+        </CardHeader>
+        <CardContent className='space-y-6'>
+          {alert && (
+            <Alert className='rounded-lg bg-red-700 border-red-800 text-red-50'>
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>
-                {alert}
-              </AlertDescription>
+              <AlertTitle>Authentication Failed</AlertTitle>
+              <AlertDescription>{alert}</AlertDescription>
             </Alert>
-          }
+          )}
 
-          <Button type="submit" className="w-full">Login</Button>
-        </form>
-        {auth_type === "openid" && <>
-          <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
-            <span className="relative z-10 bg-background px-2 text-muted-foreground">
-              Or continue with
-            </span>
-          </div>
-          <OpenIDButton/>
-        </>
-        }
-      </CardContent>
-    </Card>
+          <form onSubmit={handleSubmit} className='space-y-4'>
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="text"
+                  placeholder="Enter your email"
+                  value={userLogin.username}
+                  onChange={handleUsernameChange}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={userLogin.password}
+                  onChange={handlePasswordChange}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            <Button 
+              type="submit" 
+              className="w-full h-11 font-medium"
+              disabled={authenticate.isPending}
+            >
+              {authenticate.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </Button>
+          </form>
+
+          {auth_type === "openid" && (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+              <OpenIDButton />
+            </>
+          )}
+        </CardContent>
+      </Card>
+      
+      <p className="text-center text-xs text-muted-foreground mt-6">
+        Secure access to your infrastructure
+      </p>
+    </div>
   )
 }
 
@@ -163,9 +213,13 @@ const OpenIDButton = () => {
   const safeNext = getSafeRedirectUrl(searchParams.next ?? null)
   const nextParam = safeNext ?? window.location.pathname
 
-  return <a className={buttonVariants({ variant: "outline" }) + " w-full"} href={`${AUTH_URL}/login?next=${encodeURIComponent(nextParam)}`}>
-    <Fingerprint></Fingerprint>
-    Login with {auth_name}
-  </a>
-
+  return (
+    <a 
+      className={buttonVariants({ variant: "outline" }) + " w-full h-11 font-medium gap-2"} 
+      href={`${AUTH_URL}/login?next=${encodeURIComponent(nextParam)}`}
+    >
+      <Fingerprint className="h-4 w-4" />
+      Login with {auth_name}
+    </a>
+  )
 }

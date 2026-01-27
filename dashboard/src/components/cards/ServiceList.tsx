@@ -69,29 +69,6 @@ export const RouteList = ({ read_only }: RouteListProps) => {
     )
   ))
 
-  if (needsTailscaleAuth) {
-    return (
-      <Card className="container mx-auto p-2 space-y-6">
-        <CardHeader>
-          <CardTitle className='text-3xl text-center font-semibold text-red-600'>Tailscale Authentication Required</CardTitle>
-        </CardHeader>
-        <CardContent className='text-center'>
-          <p className="text-muted-foreground mx-auto">
-            The Tailscale client needs to be authenticated to access network services.
-            Please authenticate your Tailscale client to continue.
-          </p>
-        </CardContent>
-        <CardFooter className='flex justify-center'>
-        <Button
-          onClick={() => navigate({ to: '/settings', search: { tab: 'logs' } })}
-          variant="destructive"
-        >
-          View Logs & Settings
-        </Button>
-        </CardFooter>
-      </Card>
-    )
-  }
   return <Card className="container mx-auto p-2 space-y-6">
     <CardHeader className='flex flex-row justify-between'>
       <div className='space-y-1.5 flex flex-col'>

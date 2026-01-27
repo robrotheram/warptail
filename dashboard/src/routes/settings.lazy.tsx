@@ -381,7 +381,7 @@ const SettingComponent = () => {
             <CardTitle className="text-sm font-medium">TailScale Version</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data?.version}</div>
+            <div className="text-2xl font-bold">{data?.version.split('-')[0]}</div>
           </CardContent>
         </Card>
 
@@ -405,7 +405,6 @@ const SettingComponent = () => {
               <Activity className={`h-5 w-5 ${data?.state === TS_STATE.RUNNING ? 'text-green-500' : 'text-red-500'}`} />
               <span className="text-xl font-bold">{data?.state}</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">{data?.state !== TS_STATE.RUNNING && "Encountered some problems"}</p>
           </CardContent>
         </Card>
       </div>
