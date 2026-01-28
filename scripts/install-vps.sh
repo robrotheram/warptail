@@ -15,7 +15,6 @@ NC='\033[0m' # No Color
 # Default values
 WARPTAIL_USER="warptail"
 WARPTAIL_HOME="/var/lib/warptail"
-CONFIG_DIR="/etc/warptail"
 LOG_DIR="/var/log/warptail"
 INSTALL_DIR="/usr/local/bin"
 
@@ -38,16 +37,23 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-check_root() {
+check_sudo_user() {
+    # Check if running with sudo
     if [[ $EUID -eq 0 ]]; then
-        print_error "This script should not be run as root. Please run as a regular user with sudo privileges."
-        exit 1
-    fi
-}
-
-check_sudo() {
-    if ! sudo -n true 2>/dev/null; then
-        print_error "This script requires sudo privileges. Please ensure you can run sudo commands."
+        # Running as root, check if it was invoked via sudo
+        if [[ -z "$SUDO_USER" ]]; then
+            print_error "This script should not be run directly as root. Please run with: sudo ./install.sh"
+            exit 1
+        fi
+        # Running with sudo - this is correct
+        echo "Running with sudo as user: $SUDO_USER"
+    else
+        # Not running as root, check if user has sudo privileges
+        if ! sudo -n true 2>/dev/null; then
+            print_error "This script requires sudo privileges. Please run with: sudo ./install.sh"
+            exit 1
+        fi
+        print_error "Please run this script with sudo: sudo ./install.sh"
         exit 1
     fi
 }
@@ -111,9 +117,9 @@ create_user() {
     fi
     
     print_status "Creating directories..."
-    sudo mkdir -p "$CONFIG_DIR" "$LOG_DIR" "$WARPTAIL_HOME"
-    sudo chown -R "$WARPTAIL_USER:$WARPTAIL_USER" "$CONFIG_DIR" "$LOG_DIR" "$WARPTAIL_HOME"
-    sudo chmod 755 "$CONFIG_DIR" "$LOG_DIR" "$WARPTAIL_HOME"
+    sudo mkdir -p "$LOG_DIR" "$WARPTAIL_HOME"
+    sudo chown -R "$WARPTAIL_USER:$WARPTAIL_USER" "$LOG_DIR" "$WARPTAIL_HOME"
+    sudo chmod 755 "$LOG_DIR" "$WARPTAIL_HOME"
 }
 
 install_warptail() {
@@ -219,8 +225,8 @@ create_config() {
     print_status "Creating configuration file..."
     
     # Check if config file already exists
-    if [[ -f "$CONFIG_DIR/config.yaml" ]]; then
-        print_warning "Configuration file already exists: $CONFIG_DIR/config.yaml"
+    if [[ -f "$WARPTAIL_HOME/config.yaml" ]]; then
+        print_warning "Configuration file already exists: $WARPTAIL_HOME/config.yaml"
         print_status "Keeping existing configuration file"
         return 0
     fi
@@ -232,10 +238,8 @@ create_config() {
         IPV4_ADDRESS="localhost"
     fi
 
-    # Generate a random password
-    RANDOM_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
     
-    sudo tee "$CONFIG_DIR/config.yaml" > /dev/null <<EOF
+    sudo tee "$WARPTAIL_HOME/config.yaml" > /dev/null <<EOF
 tailscale:
   auth_key: ""
   hostname: "warptail-proxy"
@@ -249,8 +253,7 @@ authentication:
     session_secret: "$(openssl rand -base64 32)"
     provider:
         basic:
-        email: "admin@warptail.local"
-        password: "$RANDOM_PASSWORD"    
+        email: admin@warptail.local
         
 acme:
     enabled: true
@@ -271,12 +274,11 @@ database:
 services: []
 EOF
 
-    sudo chown "$WARPTAIL_USER:$WARPTAIL_USER" "$CONFIG_DIR/config.yaml"
-    sudo chmod 600 "$CONFIG_DIR/config.yaml"
+    sudo chown "$WARPTAIL_USER:$WARPTAIL_USER" "$WARPTAIL_HOME/config.yaml"
+    sudo chmod 600 "$WARPTAIL_HOME/config.yaml"
     
     print_success "Configuration file created"
-    print_warning "Generated admin password: $RANDOM_PASSWORD"
-    print_warning "Please save this password and update the Tailscale auth key in $CONFIG_DIR/config.yaml"
+    print_warning "Please save this password and update the Tailscale auth key in $WARPTAIL_HOME/config.yaml"
 }
 
 create_systemd_service() {
@@ -295,7 +297,7 @@ User=$WARPTAIL_USER
 Group=$WARPTAIL_USER
 ExecStart=$INSTALL_DIR/warptail
 WorkingDirectory=$WARPTAIL_HOME
-Environment=CONFIG_PATH=$CONFIG_DIR/config.yaml
+Environment=CONFIG_PATH=$WARPTAIL_HOME/config.yaml
 
 # Restart policy
 Restart=always
@@ -323,6 +325,7 @@ EOF
 
     sudo systemctl daemon-reload
     sudo systemctl enable warptail
+    sudo systemctl start warptail
     
     print_success "Systemd service created and enabled"
 }
@@ -373,7 +376,7 @@ print_install_summary() {
     print_success "WarpTail has been successfully installed!"
     echo
     echo "Next steps:"
-    echo "1. Edit the configuration file: sudo nano $CONFIG_DIR/config.yaml"
+    echo "1. Edit the configuration file: sudo nano $WARPTAIL_HOME/config.yaml"
     echo "2. Add your Tailscale auth key (replace YOUR_TAILSCALE_AUTH_KEY)"
     echo "3. Start WarpTail: sudo systemctl start warptail"
     echo "4. Check status: sudo systemctl status warptail"
@@ -381,7 +384,7 @@ print_install_summary() {
     echo
     echo "Login credentials:"
     echo "  Username: admin"
-    echo "  Password: (check the generated password above)"
+    echo "  Password: change_me"
     echo
     echo "Useful commands:"
     echo "  View logs: sudo journalctl -u warptail -f"
@@ -491,8 +494,7 @@ main() {
     echo "======================================="
     echo
     
-    check_root
-    check_sudo
+    check_sudo_user
     check_os
     
     if [[ "$OPERATION_MODE" == "upgrade" ]]; then
