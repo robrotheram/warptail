@@ -17,6 +17,7 @@ WARPTAIL_USER="warptail"
 WARPTAIL_HOME="/var/lib/warptail"
 LOG_DIR="/var/log/warptail"
 INSTALL_DIR="/usr/local/bin"
+CONFIG_PATH="/etc/warptail"
 
 # Operation mode
 OPERATION_MODE="install"
@@ -117,9 +118,9 @@ create_user() {
     fi
     
     print_status "Creating directories..."
-    sudo mkdir -p "$LOG_DIR" "$WARPTAIL_HOME"
-    sudo chown -R "$WARPTAIL_USER:$WARPTAIL_USER" "$LOG_DIR" "$WARPTAIL_HOME"
-    sudo chmod 755 "$LOG_DIR" "$WARPTAIL_HOME"
+    sudo mkdir -p "$LOG_DIR" "$WARPTAIL_HOME" "$CONFIG_PATH"
+    sudo chown -R "$WARPTAIL_USER:$WARPTAIL_USER" "$LOG_DIR" "$WARPTAIL_HOME" "$CONFIG_PATH"
+    sudo chmod 755 "$LOG_DIR" "$WARPTAIL_HOME" "$CONFIG_PATH"
 }
 
 install_warptail() {
@@ -276,6 +277,7 @@ EOF
 
     sudo chown "$WARPTAIL_USER:$WARPTAIL_USER" "$WARPTAIL_HOME/config.yaml"
     sudo chmod 600 "$WARPTAIL_HOME/config.yaml"
+    sudo ln -s "$WARPTAIL_HOME/config.yaml" "$CONFIG_PATH/config.yaml"
     
     print_success "Configuration file created"
     print_warning "Please save this password and update the Tailscale auth key in $WARPTAIL_HOME/config.yaml"
