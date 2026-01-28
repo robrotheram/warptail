@@ -253,7 +253,7 @@ authentication:
     session_secret: "$(openssl rand -base64 32)"
     provider:
         basic:
-        email: admin@warptail.local
+            email: admin@warptail.local
         
 acme:
     enabled: true
