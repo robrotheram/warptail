@@ -280,7 +280,6 @@ EOF
     sudo ln -s "$WARPTAIL_HOME/config.yaml" "$CONFIG_PATH/config.yaml"
     
     print_success "Configuration file created"
-    print_warning "Please save this password and update the Tailscale auth key in $WARPTAIL_HOME/config.yaml"
 }
 
 create_systemd_service() {
@@ -386,7 +385,7 @@ print_install_summary() {
     echo
     echo "Login credentials:"
     echo "  Username: admin"
-    echo "  Password: change_me"
+    echo "  Password: changeme"
     echo
     echo "Useful commands:"
     echo "  View logs: sudo journalctl -u warptail -f"

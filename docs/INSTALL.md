@@ -11,17 +11,30 @@ This comprehensive guide will help you install and configure WarpTail on a Serve
 
 ## Quick Installation Script
 
-For a quick installation, you can use this script:
+### 🚀 One-Line Install
+
+Install WarpTail on your VPS with a single command:
 
 ```bash
-# Download the installer, inspect it, then run it
-curl -fsSL -o install-warptail.sh https://raw.githubusercontent.com/robrotheram/warptail/main/scripts/install-vps.sh
-# Optional: inspect the downloaded script before executing
-less install-warptail.sh
-# Make the script executable, then run it
-chmod +x install-warptail.sh
-./install-warptail.sh
+curl -fsSL https://raw.githubusercontent.com/robrotheram/warptail/main/scripts/install-vps.sh | sudo bash
 ```
+
+**What this does:**
+- Installs WarpTail binary to `/usr/local/bin`
+- Creates system user and directories
+- Sets up systemd service for auto-start
+- Configures logging at `/var/log/warptail`
+
+**Upgrade:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/robrotheram/warptail/main/scripts/install-vps.sh | sudo bash -s -- --upgrade
+```
+
+> **Note:** Requires Ubuntu or Debian with sudo privileges.
+
+For manual installation steps, see [INSTALL.md](./docs/INSTALL.md).
+
+---
 
 ### Important files
 
@@ -64,9 +77,8 @@ authentication:
   baseURL: "https://your-domain.com"  # Your WarpTail URL
   secretKey: "your-random-secret-key-here"
   provider:
-    name: "WarpTail Admin"
-    type: "password"
-    session_secret: "your-secure-password"
+      basic:
+          email: admin@warptail.local # Change to your email address
 ```
 
 #### Option 2: Google OAuth
@@ -76,11 +88,11 @@ authentication:
   baseURL: "https://your-domain.com"
   secretKey: "your-random-secret-key-here"
   provider:
-    name: "Google SSO"
-    type: "openid"
-    clientID: "your-google-client-id.apps.googleusercontent.com"
-    providerURL: "https://accounts.google.com"
-    session_secret: "your-session-secret"
+    oidc:
+      name: "Google SSO"
+      issuer_url: "https://accounts.google.com"
+      client_id: "your-google-client-id.apps.googleusercontent.com"
+      client_secret: "your-client-secret"
 ```
 
 **Setup Steps for Google OAuth:**
@@ -101,11 +113,12 @@ authentication:
   baseURL: "https://your-domain.com"
   secretKey: "your-random-secret-key-here"
   provider:
-    name: "Microsoft SSO"
-    type: "openid"
-    clientID: "your-azure-application-id"
-    providerURL: "https://login.microsoftonline.com/your-tenant-id/v2.0"
-    session_secret: "your-session-secret"
+    oidc:
+      name: "Microsoft SSO"
+      client_id: "your-azure-application-id"
+      client_secret: "your-client-secret"
+      issuer_url: "https://login.microsoftonline.com/your-tenant-id/v2.0"
+      
 ```
 
 **Setup Steps for Azure AD:**
@@ -124,11 +137,12 @@ authentication:
   baseURL: "https://your-domain.com"
   secretKey: "your-random-secret-key-here"
   provider:
-    name: "GitHub SSO"
-    type: "openid"
-    clientID: "your-github-client-id"
-    providerURL: "https://github.com"
-    session_secret: "your-session-secret"
+    oidc:
+      name: "GitHub SSO"
+      type: "openid"
+      client_id: "your-github-client-id"
+      client_secret: "your-client-secret"
+      issuer_url: "https://github.com"
 ```
 
 **Setup Steps for GitHub OAuth:**
@@ -145,11 +159,12 @@ authentication:
   baseURL: "https://your-domain.com"
   secretKey: "your-random-secret-key-here"
   provider:
-    name: "Custom OIDC"
-    type: "openid"
-    clientID: "your-client-id"
-    providerURL: "https://your-oidc-provider.com"
-    session_secret: "your-session-secret"
+    oidc:
+      name: "Custom OIDC"
+      type: "openid"
+      client_id: "your-client-id"
+      client_secret: "your-client-secret"
+      issuer_url: "https://your-oidc-provider.com"
 ```
 
 **For other OIDC providers (Keycloak, Auth0, Okta, etc.):**
