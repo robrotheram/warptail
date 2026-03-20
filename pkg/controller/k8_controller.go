@@ -88,7 +88,7 @@ func NewK8Controller(cfg utils.KubernetesConfig) (*K8Controller, error) {
 
 func (ctrl *K8Controller) Update(router *router.Router) {
 	routes := []utils.RouteConfig{}
-	for _, svc := range router.Services {
+	for _, svc := range router.All() {
 		for _, route := range svc.Routes {
 			routes = append(routes, route.Config())
 		}

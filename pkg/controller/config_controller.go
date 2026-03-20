@@ -44,7 +44,7 @@ func (ctrl *ConfigCtrl) Save(config utils.Config) {
 
 func (ctrl *ConfigCtrl) Update(router *router.Router) {
 	svcs := []utils.ServiceConfig{}
-	for _, svc := range router.Services {
+	for _, svc := range router.All() {
 		config := utils.ServiceConfig{
 			Name:    svc.Name,
 			Enabled: svc.Enabled,

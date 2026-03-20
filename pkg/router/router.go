@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"net/http"
+	"sync"
 	"warptail/pkg/utils"
 
 	"github.com/gosimple/slug"
@@ -15,6 +16,8 @@ type Router struct {
 	Services    map[string]*Service
 	ts          *tsnet.Server
 	Controllers []Controller
+	mu          sync.RWMutex
+	ready       bool
 }
 
 type RouteInfo struct {
@@ -27,8 +30,23 @@ func NewRouter() *Router {
 	router := &Router{
 		Services:    make(map[string]*Service),
 		Controllers: []Controller{},
+		ready:       false,
 	}
 	return router
+}
+
+// IsReady returns true if the router has completed initialization
+func (r *Router) IsReady() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.ready
+}
+
+// SetReady marks the router as ready or not ready
+func (r *Router) SetReady(ready bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ready = ready
 }
 
 func (r *Router) Init(config utils.Config) error {
@@ -41,6 +59,8 @@ func (r *Router) Init(config utils.Config) error {
 			return err
 		}
 	}
+	r.SetReady(true)
+	utils.Logger.Info("Router initialization complete")
 	return nil
 }
 
@@ -57,22 +77,39 @@ func (r *Router) Reload(config utils.Config) error {
 		}
 	}
 
+	// Collect keys to delete while holding lock, then delete
+	r.mu.Lock()
+	keysToDelete := []string{}
 	for key, svc := range r.Services {
 		if !utils.ContainsService(svc.Name, config.Services) {
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+	for _, key := range keysToDelete {
+		if svc, ok := r.Services[key]; ok {
+			for _, route := range svc.Routes {
+				route.Stop()
+			}
 			delete(r.Services, key)
 		}
 	}
+	r.mu.Unlock()
 	return nil
 }
 
 func (r *Router) DoesExists(name string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	id := slug.Make(name)
 	_, ok := r.Services[id]
 	return ok
 }
 
 func (r *Router) Create(svc utils.ServiceConfig) (*Service, *utils.RouterError) {
-	if r.DoesExists(svc.Name) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	id := slug.Make(svc.Name)
+	if _, ok := r.Services[id]; ok {
 		return nil, utils.CustomError(http.StatusConflict, "service already exists unable to load config")
 	}
 	service := NewService(svc, r.ts)
@@ -86,6 +123,8 @@ func (r *Router) Create(svc utils.ServiceConfig) (*Service, *utils.RouterError) 
 }
 
 func (r *Router) All() []Service {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	svcs := []Service{}
 	for _, svc := range r.Services {
 		svcs = append(svcs, *svc)
@@ -94,6 +133,8 @@ func (r *Router) All() []Service {
 }
 
 func (r *Router) Get(id string) (*Service, *utils.RouterError) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	if svc, ok := r.Services[id]; ok {
 		return svc, nil
 	}
@@ -101,6 +142,8 @@ func (r *Router) Get(id string) (*Service, *utils.RouterError) {
 }
 
 func (r *Router) GetHttpRoute(domain string) (*HTTPRoute, *utils.RouterError) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	for _, svc := range r.Services {
 		for _, route := range svc.Routes {
 			if route.Config().Type == utils.HTTP || route.Config().Type == utils.HTTPS {
@@ -114,6 +157,8 @@ func (r *Router) GetHttpRoute(domain string) (*HTTPRoute, *utils.RouterError) {
 }
 
 func (r *Router) Update(id string, svc utils.ServiceConfig) (*Service, *utils.RouterError) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	existing, ok := r.Services[id]
 	if !ok {
 		return nil, ServiceNotFoundError
@@ -127,6 +172,8 @@ func (r *Router) Update(id string, svc utils.ServiceConfig) (*Service, *utils.Ro
 }
 
 func (r *Router) Remove(id string) *utils.RouterError {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	svc, ok := r.Services[id]
 	if !ok {
 		return ServiceNotFoundError
@@ -145,12 +192,16 @@ func (r *Router) Save() {
 }
 
 func (r *Router) StartAll() {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	for _, svc := range r.Services {
 		svc.Start()
 	}
 }
 
 func (r *Router) StopAll() {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	for _, svc := range r.Services {
 		svc.Stop()
 	}

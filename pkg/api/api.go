@@ -50,7 +50,19 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 	api.authentication = auth.NewAuthentication(mux, db, config.Authentication)
 	api.botProtect = botprotect.NewBotChallenge(mux, config.Authentication)
 
+	// Liveness probe - always returns ok if the process is alive
 	mux.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "ok")
+	})
+
+	// Readiness probe - returns ok only when router is fully initialized
+	mux.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		if !router.IsReady() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprintln(w, "router not ready")
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "ok")
 	})
