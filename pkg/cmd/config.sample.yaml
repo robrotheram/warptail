@@ -4,7 +4,7 @@ logging:
   output: stdout    # Choose the output, "stdout" for console output or a filepath
 tailscale:
   api_key: ""
-  hostnmae: "TS_HOSTNAME"
+  hostname: "TS_HOSTNAME"
 services:
 - name: test
   enabled: true
@@ -35,4 +35,4 @@ application:
     enabled: true  # Enable ACME SSL configuration
     ssl_port: 443  # Port for SSL/TLS connections
     certificates_dir: /etc/proxy/certs  # Directory to store SSL certificates
-    portal_domain: warptail.excptionerror.local  # SSL domain for certificate 
+    portal_domain: warptail.excptionerror.local  # SSL domain for certificate

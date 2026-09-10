@@ -50,7 +50,7 @@ func (ctrl *CertifcationBuilder) build(routes []utils.RouteConfig) certmanagerv1
 		Spec: certmanagerv1.CertificateSpec{
 			SecretName: ctrl.Certificate.SecretName,
 			DNSNames:   DNSNames,
-			IssuerRef: cmmeta.ObjectReference{
+			IssuerRef: cmmeta.IssuerReference{
 				Name: "letsencrypt-prod",
 				Kind: "ClusterIssuer",
 			},

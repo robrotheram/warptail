@@ -1,63 +1,32 @@
-import { AnsiHtml } from "fancy-ansi/react"
-import { useEffect, useRef } from "react";
-import "./logviewer.scss"
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '../ui/button';
 
-// URL regex pattern to match http, https, and file URLs
-const urlPattern = /(https?:\/\/[^\s<>"{}|\\^`[\]]+|file:\/\/[^\s<>"{}|\\^`[\]]+)/g;
+export const MAX_LOG_LINES = 1000;
+// Render untrusted logs as React text, never as HTML or terminal escape sequences.
+export function logLines(logs: string[]) {
+  return logs.slice(-MAX_LOG_LINES).flatMap(log => log.split('\n')).filter(line => line.trim()).slice(-MAX_LOG_LINES);
+}
 
-// Component to render text with clickable links
-const LinkifyText = ({ text }: { text: string }) => {
-    const parts = text.split(urlPattern);
-    
-    return (
-        <>
-            {parts.map((part, i) => {
-                if (urlPattern.test(part)) {
-                    // Reset regex lastIndex after test
-                    urlPattern.lastIndex = 0;
-                    return (
-                        <a 
-                            key={i} 
-                            href={part} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-blue-400 hover:text-blue-300 underline"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {part}
-                        </a>
-                    );
-                }
-                // Reset regex lastIndex
-                urlPattern.lastIndex = 0;
-                return <AnsiHtml key={i} text={part} />;
-            })}
-        </>
-    );
-};
+const LogLine = memo(function LogLine({ text }: { text: string }) {
+  // eslint-disable-next-line no-control-regex
+  const plain = text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '');
+  return <div className="whitespace-pre-wrap break-all">{plain.split(/(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g).map((part, index) =>
+    /^https?:\/\//.test(part) ? <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="text-primary underline">{part}</a> : part
+  )}</div>;
+});
 
-export const LogViewer = ({ logs }: { logs: string[] }) => {
-    const bottomRef = useRef<null | HTMLDivElement>(null);
-    
-    useEffect(() => {
-        bottomRef.current?.scrollIntoView({behavior: 'smooth'});
-    }, [logs]);
-    
-    // Process logs to ensure proper line breaks
-    const processedLogs = logs.map(log => 
-        log.split('\n').filter(line => line.trim() !== '')
-    ).flat();
-    
-    return (
-        <div className="h-[400px] overflow-y-auto noScrollbar font-mono text-sm">
-            <div className="space-y-1 p-4">
-                {processedLogs.map((log, index) => (
-                    <div key={index} className="whitespace-pre-wrap break-words">
-                        <LinkifyText text={log} />
-                    </div>
-                ))}
-            </div>
-            <div ref={bottomRef} />
-        </div>
-    )
+export function LogViewer({ logs }: { logs: string[] }) {
+  const container = useRef<HTMLDivElement>(null);
+  const [following, setFollowing] = useState(true);
+  const lines = useMemo(() => logLines(logs), [logs]);
+  useEffect(() => {
+    if (following && container.current) container.current.scrollTop = container.current.scrollHeight;
+  }, [lines, following]);
+  return <div className="space-y-2">
+    <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span>Latest {lines.length.toLocaleString()} lines · up to {MAX_LOG_LINES.toLocaleString()}</span><Button size="sm" variant="ghost" aria-pressed={following} onClick={() => setFollowing(value => !value)}>{following ? 'Pause scrolling' : 'Follow latest'}</Button></div>
+    <div ref={container} tabIndex={0} aria-label="Log output" className="h-[400px] overflow-auto rounded-md bg-background p-4 font-mono text-xs leading-relaxed" onScroll={() => {
+      const element = container.current;
+      if (element && element.scrollHeight - element.scrollTop - element.clientHeight > 40) setFollowing(false);
+    }}>{lines.length ? lines.map((line, index) => <LogLine key={index} text={line} />) : <p className="py-8 text-center text-muted-foreground">No logs available.</p>}</div>
+  </div>;
 }

@@ -4,307 +4,182 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"sync"
+	"reflect"
 	"time"
 	"warptail/pkg/utils"
-
-	tailscale "tailscale.com/tsnet"
 )
 
-const (
-	tcpBufferSize        = 32 * 1024 // 32KB buffer for TCP
-	tcpHeartbeatInterval = 5 * time.Second
-)
-
-// TCPRoute handles TCP traffic proxying through Tailscale.
 type TCPRoute struct {
-	config utils.RouteConfig
-	client *tailscale.Server
-	data   *utils.TimeSeries
-
-	mu       sync.RWMutex
-	status   RouterStatus
+	*connectionRoute
 	listener net.Listener
-
-	quit   chan struct{}
-	cancel context.CancelFunc
-	ctx    context.Context
-	wg     sync.WaitGroup
-
-	activeConns sync.Map // tracks active connections for graceful shutdown
-	connCount   int64
-	connCountMu sync.Mutex
-
-	latency   time.Duration
-	latencyMu sync.RWMutex
+	conns    map[net.Conn]struct{}
+	clients  int64
 }
 
-func NewTCPRoute(config utils.RouteConfig, client *tailscale.Server) *TCPRoute {
-	return &TCPRoute{
-		config: config,
-		data:   utils.NewTimeSeries(time.Second, 1000),
-		status: STOPPED,
-		client: client,
+func NewTCPRoute(config utils.RouteConfig, backend Backend) *TCPRoute {
+	return &TCPRoute{connectionRoute: newConnectionRoute(config, backend)}
+}
+func (r *TCPRoute) Start() error {
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	return r.start()
+}
+func (r *TCPRoute) start() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.status == RUNNING {
+		return nil
 	}
-}
-
-func (route *TCPRoute) Status() RouterStatus {
-	route.mu.RLock()
-	defer route.mu.RUnlock()
-	return route.status
-}
-
-func (route *TCPRoute) Config() utils.RouteConfig {
-	route.mu.RLock()
-	defer route.mu.RUnlock()
-	return route.config
-}
-
-func (route *TCPRoute) Stats() utils.TimeSeriesData {
-	return route.data.Data
-}
-
-func (route *TCPRoute) Update(config utils.RouteConfig) error {
-	route.Stop()
-	route.mu.Lock()
-	route.config = config
-	route.mu.Unlock()
-	return route.Start()
-}
-
-func (route *TCPRoute) Stop() error {
-	route.mu.Lock()
-	if route.status != RUNNING {
-		route.mu.Unlock()
-		return fmt.Errorf("route not running")
-	}
-	route.status = STOPPING
-
-	// Cancel context to stop all dials
-	if route.cancel != nil {
-		route.cancel()
-	}
-
-	// Close listener to stop accepting new connections
-	if route.listener != nil {
-		route.listener.Close()
-	}
-
-	// Close all active connections
-	route.activeConns.Range(func(key, value any) bool {
-		if conn, ok := value.(net.Conn); ok {
-			conn.Close()
-		}
-		return true
-	})
-
-	// Signal all goroutines to stop
-	close(route.quit)
-	route.mu.Unlock()
-
-	// Wait for all goroutines to finish
-	route.wg.Wait()
-
-	route.mu.Lock()
-	route.status = STOPPED
-	route.mu.Unlock()
-
-	utils.Logger.Info("Stopped TCP route", "port", route.config.Port)
-	return nil
-}
-
-func (route *TCPRoute) Start() error {
-	route.mu.Lock()
-	if route.status == RUNNING {
-		route.mu.Unlock()
-		route.Stop()
-		route.mu.Lock()
-	}
-
-	route.status = STARTING
-	route.quit = make(chan struct{})
-	route.ctx, route.cancel = context.WithCancel(context.Background())
-
-	laddr := fmt.Sprintf(":%d", route.config.Port)
-
-	var err error
-	route.listener, err = net.Listen("tcp", laddr)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", r.config.Port))
 	if err != nil {
-		route.status = STOPPED
-		route.mu.Unlock()
 		return err
 	}
-
-	route.wg.Add(2)
-	go route.acceptLoop()
-	go route.runHeartbeat()
-
-	route.status = RUNNING
-	route.mu.Unlock()
+	r.listener = listener
+	r.conns = make(map[net.Conn]struct{})
+	r.ctx, r.cancel = context.WithCancel(context.Background())
+	r.status = RUNNING
+	r.wg.Add(2)
+	go r.acceptLoop(r.ctx, listener, machineAddress(r.config.Machine))
+	go r.runHeartbeat(r.ctx, func(ctx context.Context) (time.Duration, error) {
+		start := time.Now()
+		conn, err := r.backend.Dial(ctx, "tcp", machineAddress(r.Config().Machine))
+		if err != nil {
+			return -1, err
+		}
+		conn.Close()
+		return time.Since(start), nil
+	})
 	return nil
 }
-
-func (route *TCPRoute) acceptLoop() {
-	defer route.wg.Done()
-
-	for {
-		select {
-		case <-route.quit:
-			return
-		default:
-		}
-
-		conn, err := route.listener.Accept()
-		if err != nil {
-			select {
-			case <-route.quit:
-				return
-			default:
-				log.Println("TCP accept error:", err)
-				continue
-			}
-		}
-
-		// Track connection
-		connID := fmt.Sprintf("%p", conn)
-		route.activeConns.Store(connID, conn)
-
-		route.connCountMu.Lock()
-		route.connCount++
-		route.connCountMu.Unlock()
-
-		go route.handleConnection(conn, connID)
-	}
+func (r *TCPRoute) Stop() error {
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	return r.stop()
 }
-
-func (route *TCPRoute) handleConnection(clientConn net.Conn, connID string) {
-	defer func() {
-		clientConn.Close()
-		route.activeConns.Delete(connID)
-
-		route.connCountMu.Lock()
-		route.connCount--
-		route.connCountMu.Unlock()
-	}()
-
-	// Connect to backend through Tailscale
-	backendAddr := route.backendAddr()
-	backendConn, err := route.client.Dial(route.ctx, "tcp", backendAddr)
-	if err != nil {
-		utils.Logger.Error(err, "remote connection failed")
-		return
+func (r *TCPRoute) stop() error {
+	r.mu.Lock()
+	if r.status == STOPPED {
+		r.mu.Unlock()
+		return nil
 	}
-	defer backendConn.Close()
-
-	// Bidirectional copy with stats tracking
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	// Client -> Backend (sent data)
-	go func() {
-		defer wg.Done()
-		route.copyWithStats(backendConn, clientConn, true)
-	}()
-
-	// Backend -> Client (received data)
-	go func() {
-		defer wg.Done()
-		route.copyWithStats(clientConn, backendConn, false)
-	}()
-
-	wg.Wait()
-}
-
-func (route *TCPRoute) copyWithStats(dst, src net.Conn, isSent bool) int64 {
-	buf := make([]byte, tcpBufferSize)
-	var totalBytes int64
-
-	for {
-		select {
-		case <-route.quit:
-			return totalBytes
-		default:
-		}
-
-		n, readErr := src.Read(buf)
-		if n > 0 {
-			written, writeErr := dst.Write(buf[:n])
-			if written > 0 {
-				totalBytes += int64(written)
-				// Log stats in real-time as data flows
-				if isSent {
-					route.data.LogSent(uint64(written))
-				} else {
-					route.data.LogRecived(uint64(written))
-				}
-			}
-			if writeErr != nil {
-				return totalBytes
-			}
-		}
-		if readErr != nil {
-			if readErr != io.EOF {
-				// Only log if it's not a normal close
-				select {
-				case <-route.quit:
-				default:
-					// Connection closed by peer is normal
-				}
-			}
-			return totalBytes
-		}
+	r.status = STOPPING
+	r.cancel()
+	r.listener.Close()
+	for conn := range r.conns {
+		conn.Close()
 	}
+	r.mu.Unlock()
+	r.wg.Wait()
+	r.mu.Lock()
+	r.status = STOPPED
+	r.latency = -1
+	r.mu.Unlock()
+	return nil
 }
-
-func (route *TCPRoute) backendAddr() string {
-	route.mu.RLock()
-	defer route.mu.RUnlock()
-	return fmt.Sprintf("%s:%d", route.config.Machine.Address, route.config.Machine.Port)
-}
-
-func (route *TCPRoute) runHeartbeat() {
-	defer route.wg.Done()
-	ticker := time.NewTicker(tcpHeartbeatInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-route.quit:
-			return
-		case <-ticker.C:
-			route.measureLatency()
-		}
+func (r *TCPRoute) Update(config utils.RouteConfig) error {
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	if reflect.DeepEqual(r.Config(), config) {
+		return nil
 	}
-}
-
-func (route *TCPRoute) measureLatency() {
-	backendAddr := route.backendAddr()
-
-	start := time.Now()
-	dialCtx, cancel := context.WithTimeout(route.ctx, 5*time.Second)
-	defer cancel()
-	conn, err := route.client.Dial(dialCtx, "tcp", backendAddr)
-	if err != nil {
-		route.latencyMu.Lock()
-		defer route.latencyMu.Unlock()
-		route.latency = -1
-		return
+	running := r.Status() == RUNNING
+	r.stop()
+	r.mu.Lock()
+	r.config = config
+	r.mu.Unlock()
+	if running {
+		return r.start()
 	}
+	return nil
+}
+func (r *TCPRoute) track(ctx context.Context, conn net.Conn) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if ctx.Err() != nil {
+		conn.Close()
+		return false
+	}
+	r.conns[conn] = struct{}{}
+	return true
+}
+func (r *TCPRoute) release(conn net.Conn) {
 	conn.Close()
-	route.latency = time.Since(start)
+	r.mu.Lock()
+	delete(r.conns, conn)
+	r.mu.Unlock()
+}
+func (r *TCPRoute) acceptLoop(ctx context.Context, listener net.Listener, address string) {
+	defer r.wg.Done()
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			if ctx.Err() == nil {
+				utils.Logger.Error(err, "TCP accept failed")
+			}
+			return
+		}
+		if !r.track(ctx, conn) {
+			return
+		}
+		r.mu.Lock()
+		r.clients++
+		r.mu.Unlock()
+		r.wg.Add(1)
+		go r.handleConnection(ctx, conn, address)
+	}
+}
+func (r *TCPRoute) handleConnection(ctx context.Context, client net.Conn, address string) {
+	defer r.wg.Done()
+	defer r.release(client)
+	defer func() { r.mu.Lock(); r.clients--; r.mu.Unlock() }()
+	dialCtx, cancel := context.WithTimeout(ctx, backendDialTimeout)
+	backend, err := r.backend.Dial(dialCtx, "tcp", address)
+	cancel()
+	if err != nil {
+		if ctx.Err() == nil {
+			utils.Logger.Error(err, "TCP backend connection failed", "address", address)
+		}
+		return
+	}
+	if !r.track(ctx, backend) {
+		return
+	}
+	defer r.release(backend)
+	done := make(chan struct{}, 2)
+	copyStream := func(dst, src net.Conn, logBytes func(uint64)) {
+		_, err := io.Copy(&countingWriter{Writer: dst, logBytes: logBytes}, src)
+		if err == nil {
+			if half, ok := dst.(interface{ CloseWrite() error }); ok {
+				err = half.CloseWrite()
+			} else {
+				err = dst.Close()
+			}
+		}
+		if err != nil {
+			client.Close()
+			backend.Close()
+		}
+		done <- struct{}{}
+	}
+	go copyStream(backend, client, r.data.LogSent)
+	go copyStream(client, backend, r.data.LogRecived)
+	<-done
+	<-done
 }
 
-func (route *TCPRoute) Ping() time.Duration {
-	route.latencyMu.RLock()
-	defer route.latencyMu.RUnlock()
-	return route.latency
+type countingWriter struct {
+	io.Writer
+	logBytes func(uint64)
 }
 
-// ActiveConnections returns the current number of active TCP connections
-func (route *TCPRoute) ActiveConnections() int64 {
-	route.connCountMu.Lock()
-	defer route.connCountMu.Unlock()
-	return route.connCount
+func (w *countingWriter) Write(p []byte) (int, error) {
+	n, err := w.Writer.Write(p)
+	w.logBytes(uint64(n))
+	return n, err
+}
+func (r *TCPRoute) ActiveConnections() int64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.clients
 }

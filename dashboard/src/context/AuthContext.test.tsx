@@ -1,188 +1,116 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act, waitFor, cleanup } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
+import { getProfile, logout, token, Role } from '@/lib/api';
+import { AxiosError } from 'axios';
 
-// Mock the API module
-vi.mock('@/lib/api', () => ({
-  getProfile: vi.fn().mockResolvedValue({ id: '1', name: 'Test User', email: 'test@test.com' }),
+vi.mock('@/lib/api', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/api')>(),
+  getProfile: vi.fn(),
+  logout: vi.fn(),
 }));
 
-// Mock TanStack Router
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
-}));
-
-const createTestQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      gcTime: 0,
-    },
-  },
-});
-
-const createWrapper = () => {
-  const queryClient = createTestQueryClient();
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
-    </QueryClientProvider>
-  );
+const user = { id: '1', name: 'Test User', email: 'test@example.com', type: 'internal', role: Role.ADMIN };
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return { promise, resolve };
 };
 
-describe('AuthContext', () => {
-  // Mock sessionStorage
-  const mockSessionStorage = {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-  };
+function setup() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}><AuthProvider>{children}</AuthProvider></QueryClientProvider>;
+  return { client, ...renderHook(() => useAuth(), { wrapper }) };
+}
 
-  beforeEach(() => {
-    // Replace the real sessionStorage with our mock
-    Object.defineProperty(window, 'sessionStorage', {
-      value: mockSessionStorage,
-      writable: true
-    });
-  });
+beforeEach(() => {
+  token.remove();
+  vi.mocked(getProfile).mockReset().mockResolvedValue(user);
+  vi.mocked(logout).mockReset().mockResolvedValue(undefined);
+});
+afterEach(() => { cleanup(); token.remove(); });
 
-  afterEach(() => {
-    // Clear all mocks between tests
-    vi.clearAllMocks();
-  });
-
-  it('throws error when useAuth is used outside of AuthProvider', () => {
-    const queryClient = createTestQueryClient();
-    try {
-      expect(() => renderHook(() => useAuth(), {
-        wrapper: ({ children }) => (
-          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-        ),
-      })).toThrowError("useAuth must be used within an AuthProvider");     
-    } catch (error) {
-      console.log("")
-    }
-  });
-
-  it('initializes with token from sessionStorage', async () => {
-    // Setup mock to return a token
-    mockSessionStorage.getItem.mockReturnValue('saved-token');
-
-    // Render the hook with AuthProvider
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: createWrapper(),
-    });
-
-    // Wait for the hook to initialize and check token
-    await waitFor(() => {
-      expect(result.current).not.toBeNull();
-    });
-    
-    expect(result.current.token).toBe('saved-token');
-    expect(mockSessionStorage.getItem).toHaveBeenCalledWith('token');
-
-    // Wait for authentication to resolve (profile query)
-    await waitFor(() => {
-      expect(result.current.isAuthenticated).toBe(true);
-    });
-  });
-
-  it('initializes with null token when sessionStorage is empty', () => {
-    // Setup mock to return null
-    mockSessionStorage.getItem.mockReturnValue(null);
-
-    // Render the hook with AuthProvider
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: createWrapper(),
-    });
-
-    // Check initial state
-    expect(result.current.token).toBeNull();
+describe('authentication transitions', () => {
+  it('does not request private data without a session', () => {
+    const { result } = setup();
     expect(result.current.isAuthenticated).toBe(false);
+    expect(getProfile).not.toHaveBeenCalled();
   });
 
-  it('successfully logs in and updates sessionStorage', async () => {
-    // Setup mock to return null initially
-    mockSessionStorage.getItem.mockReturnValue(null);
-
-    // Render the hook with AuthProvider
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: createWrapper(),
-    });
-
-    // Wait for initial render to complete
-    await waitFor(() => {
-      expect(result.current).not.toBeNull();
-    });
-
-    // Perform login
-    act(() => {
-      result.current.login('new-test-token');
-    });
-
-    // Wait for token state to update
-    await waitFor(() => {
-      expect(result.current.token).toBe('new-test-token');
-    });
-    
-    expect(mockSessionStorage.setItem).toHaveBeenCalledWith('token', 'new-test-token');
-
-    // Wait for authentication to resolve
-    await waitFor(() => {
-      expect(result.current.isAuthenticated).toBe(true);
-    });
-  });
-
-  it('successfully logs out and cleans sessionStorage', async () => {
-    // Setup initial logged-in state
-    mockSessionStorage.getItem.mockReturnValue('existing-token');
-
-    // Render the hook with AuthProvider
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: createWrapper(),
-    });
-
-    // Wait for initial auth to settle
-    await waitFor(() => {
-      expect(result.current.isAuthenticated).toBe(true);
-    });
-
-    // Perform logout
-    act(() => {
-      result.current.logout();
-    });
-
-    // Check if state and sessionStorage were updated
-    expect(result.current.token).toBeNull();
+  it('keeps auth pending until the stored session is verified', async () => {
+    token.set('saved-token');
+    const profile = deferred<typeof user>();
+    vi.mocked(getProfile).mockReturnValue(profile.promise);
+    const { result } = setup();
+    expect(result.current.isLoading).toBe(true);
     expect(result.current.isAuthenticated).toBe(false);
-    expect(mockSessionStorage.removeItem).toHaveBeenCalledWith('token');
+    await act(async () => { profile.resolve(user); });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
   });
 
-  it('provides stable references for login and logout functions', async () => {
-    // Setup mock to return a token
-    mockSessionStorage.getItem.mockReturnValue('test-token');
+  it('cancels old requests and clears private caches when switching accounts', async () => {
+    token.set('account-a');
+    const { client, result } = setup();
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    client.setQueryData(['userList'], [user]);
+    client.setQueryData(['logs', 'access'], ['private log']);
+    client.setQueryData(['config'], { site_name: 'WarpTail' });
+    const pending = deferred<string[]>();
+    let signal: AbortSignal | undefined;
+    const fetch = client.fetchQuery({ queryKey: ['slow'], queryFn: context => { signal = context.signal; return pending.promise; } }).catch(() => undefined);
+    vi.mocked(getProfile).mockResolvedValue({ ...user, id: '2', name: 'Second account' });
+    await act(async () => { await result.current.login('account-b'); });
+    expect(signal?.aborted).toBe(true);
+    expect(client.getQueryData(['userList'])).toBeUndefined();
+    expect(client.getQueryData(['logs', 'access'])).toBeUndefined();
+    expect(client.getQueryData(['config'])).toBeDefined();
+    pending.resolve(['late private data']);
+    await fetch;
+    await waitFor(() => expect(result.current.user?.id).toBe('2'));
+    expect(client.getQueryData(['slow'])).toBeUndefined();
+    expect(JSON.stringify(client.getQueryCache().getAll().map(query => query.queryKey))).not.toContain('account-b');
+  });
 
-    // Render the hook with AuthProvider
-    const { result, rerender } = renderHook(() => useAuth(), {
-      wrapper: createWrapper(),
-    });
+  it('ends the server session and clears all private data on logout', async () => {
+    token.set('active-token');
+    const { result, client } = setup();
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    client.setQueryData(['repoData'], ['private service']);
+    await act(async () => { await result.current.logout(); });
+    expect(logout).toHaveBeenCalledOnce();
+    expect(token.get()).toBeNull();
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(client.getQueryData(['repoData'])).toBeUndefined();
+  });
 
-    // Wait for initial state to settle
-    await waitFor(() => {
-      expect(result.current.token).toBe('test-token');
-    });
+  it('keeps a failed logout recoverable instead of claiming success', async () => {
+    token.set('active-token');
+    vi.mocked(logout).mockRejectedValue(new Error('Offline'));
+    const { result } = setup();
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    await act(async () => { await result.current.logout(); });
+    expect(result.current.isLoggingOut).toBe(false);
+    expect(result.current.isAuthenticated).toBe(true);
+    expect(token.get()).toBe('active-token');
+  });
 
-    // Store initial function references
-    const initialLogin = result.current.login;
-    const initialLogout = result.current.logout;
+  it('retains credentials during a network failure and can retry', async () => {
+    token.set('active-token');
+    vi.mocked(getProfile).mockRejectedValueOnce(new Error('Offline'));
+    const { result } = setup();
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(token.get()).toBe('active-token');
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+  });
 
-    // Rerender the component
-    rerender();
-
-    // Check if function references remain the same
-    expect(result.current.login).toBe(initialLogin);
-    expect(result.current.logout).toBe(initialLogout);
+  it('clears an invalid session after a profile 401', async () => {
+    token.set('invalid-token');
+    vi.mocked(getProfile).mockRejectedValue(Object.assign(new AxiosError('Unauthorized'), { response: { status: 401 } }));
+    const { result } = setup();
+    await waitFor(() => expect(token.get()).toBeNull());
+    expect(result.current.isAuthenticated).toBe(false);
   });
 });

@@ -1,70 +1,33 @@
-import { createRootRoute, Outlet, useRouterState } from '@tanstack/react-router'
-import { HeaderNav, SideNav } from "../Nav"
+import { createRootRoute, Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { HeaderNav, SideNav } from '../Nav';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ConfigProvider } from '@/context/ConfigContext';
 import { Banner } from '@/components/banner';
+import { Toaster } from 'sonner';
+import { Button } from '@/components/ui/button';
 
-const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
-    const { isAuthenticated } = useAuth();
-    
-    if (!isAuthenticated) {
-        // Show a minimal layout for unauthenticated users
-        return (
-            <div className="flex min-h-screen w-full items-center justify-center">
-                {children}
-            </div>
-        );
-    }
+function Layout() {
+  const { isAuthenticated, requiresPasswordReset } = useAuth();
+  const pathname = useRouterState({ select: state => state.location.pathname });
+  const minimal = !isAuthenticated || requiresPasswordReset || pathname === '/login' || pathname === '/password-reset';
+  if (minimal) return <main id="main-content" className="flex min-h-svh w-full items-center justify-center p-4"><Outlet /></main>;
+  return <div className="min-h-svh w-full">
+    <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:z-50 focus:rounded focus:bg-primary focus:p-3 focus:text-primary-foreground">Skip to content</a>
+    <SideNav />
+    <div className="min-w-0 sm:pl-56">
+      <HeaderNav />
+      <Banner />
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-screen-2xl p-4 sm:p-8"><Outlet /></main>
+    </div>
+  </div>;
+}
 
-    return (
-        <div className="flex min-h-screen w-full">
-            <SideNav />
-            <div className="flex flex-1 flex-col sm:pl-14">
-                <HeaderNav />
-                <div className="flex flex-1 flex-col">
-                    <Banner />
-                    <main className="flex-1 p-4 sm:px-6 sm:py-6">
-                        {children}
-                    </main>
-                </div>
-                
-            </div>
-        </div>
-    );
-};
-
-const RootLayout = () => {
-    const routerState = useRouterState();
-    const isLoginPage = routerState.location.pathname === '/login';
-    const isPasswordResetPage = routerState.location.pathname === '/password-reset';
-
-    // For login page and password reset page, render with AuthProvider but without the full layout
-    if (isLoginPage || isPasswordResetPage) {
-        return (
-            <ConfigProvider>
-                <AuthProvider>
-                    <div className="flex min-h-screen w-full items-center justify-center">
-                        <Outlet />
-                    </div>
-                </AuthProvider>
-            </ConfigProvider>
-        );
-    }
-
-    // For all other pages, use auth-protected layout
-    return (
-        <ConfigProvider>
-            <AuthProvider>
-                <AuthenticatedLayout>
-                    <Outlet />
-                </AuthenticatedLayout>
-            </AuthProvider>
-        </ConfigProvider>
-    );
-};
+function RootLayout() {
+  return <ConfigProvider><AuthProvider><Layout /><Toaster theme="dark" richColors closeButton /></AuthProvider></ConfigProvider>;
+}
 
 export const Route = createRootRoute({
-    component: RootLayout,
+  component: RootLayout,
+  notFoundComponent: () => <div className="space-y-4 p-8 text-center"><h1 className="text-2xl font-semibold">Page not found</h1><p className="text-muted-foreground">This page may have moved or no longer exists.</p><Button asChild><Link to="/">Back to services</Link></Button></div>,
+  errorComponent: ({ reset }) => <div role="alert" className="space-y-4 p-8 text-center"><h1 className="text-2xl font-semibold">Something went wrong</h1><p className="text-muted-foreground">Try loading the page again.</p><Button onClick={reset}>Try again</Button></div>,
 });
-
-

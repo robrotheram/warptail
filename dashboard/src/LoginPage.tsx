@@ -1,45 +1,18 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { useAuth } from './context/AuthContext'
+import { useAuth, Loader } from './context/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useMutation } from '@tanstack/react-query'
-import { login as api, AUTH_URL, Login, Role } from "./lib/api"
+import { login as api, AUTH_URL, Login, errorMessage, isUnauthorized } from "./lib/api"
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { AlertCircle, Fingerprint, Loader2, Lock, Mail } from 'lucide-react'
 import { Alert, AlertTitle, AlertDescription } from './components/ui/alert'
 import { useConfig } from './context/ConfigContext'
 
-/**
- * Validates and sanitizes a redirect URL to prevent open redirect attacks.
- * Only allows relative paths or same-origin URLs.
- */
-function getSafeRedirectUrl(url: string | null): string | null {
-  if (!url) return null
-  
-  try {
-    // Check if it's a relative path (starts with /)
-    if (url.startsWith('/') && !url.startsWith('//')) {
-      // Ensure it doesn't contain protocol-relative URLs or other tricks
-      const decoded = decodeURIComponent(url)
-      if (decoded.startsWith('/') && !decoded.startsWith('//') && !decoded.includes('://')) {
-        return url
-      }
-      return null
-    }
-    
-    // Parse as absolute URL and check if same origin
-    const parsed = new URL(url, window.location.origin)
-    if (parsed.origin === window.location.origin) {
-      return parsed.pathname + parsed.search + parsed.hash
-    }
-    
-    return null
-  } catch {
-    return null
-  }
-}
+import { safeRedirect } from './lib/redirect'
+import { RequestError } from './components/RequestError'
 
 export const LoginPage: React.FC = () => {
   // Use TanStack Router's useSearch for type-safe URL params
@@ -48,42 +21,36 @@ export const LoginPage: React.FC = () => {
   const [userLogin, setUserLogin] = useState<Login>({ username: "", password: "" })
   const [alert, setAlert] = useState<string>()
   const { auth_type, site_name, site_logo } = useConfig()
-  const { login, isAuthenticated, requiresPasswordReset } = useAuth()
+  const { login, isAuthenticated, requiresPasswordReset, isLoading, error, retry } = useAuth()
   const navigate = useNavigate()
   
   // Redirect to home if already authenticated, or to password reset if needed
   useEffect(() => {
     if (isAuthenticated) {
       if (requiresPasswordReset) {
-        navigate({ to: '/password-reset' })
+        navigate({ to: '/password-reset', search: { next: safeRedirect(searchParams.next) ?? undefined }, replace: true })
       } else {
-        navigate({ to: '/' })
+        const next = safeRedirect(searchParams.next)
+        if (next) window.location.replace(next)
+        else void navigate({ to: '/', replace: true })
       }
     }
-  }, [isAuthenticated, requiresPasswordReset, navigate])
+  }, [isAuthenticated, requiresPasswordReset, navigate, searchParams.next])
 
   const authenticate = useMutation({
     mutationFn: api,
-    onSuccess: (data) => {
-      const safeNext = getSafeRedirectUrl(searchParams.next ?? null);
-      if (safeNext !== null) {
-        // Safe redirect - only to same-origin paths
-        window.location.href = `${safeNext}${safeNext.includes('?') ? '&' : '?'}token=${encodeURIComponent(data.authorization_token)}`
-      } else if (data.role === Role.ADMIN) {
-        // Just set the token - the useEffect above will handle navigation
-        // once the AuthProvider's profile query completes
-        login(data.authorization_token)
-      } else {
-        setAlert("Permission Denied")
-      }
+    onSuccess: async (data) => {
+      setUserLogin(previous => ({ ...previous, password: '' }))
+      await login(data.authorization_token)
     },
-    onError: () => {
-      setAlert('Invalid username or password')
+    onError: (error) => {
+      setAlert(isUnauthorized(error) ? 'Check your username and password, then try again.' : errorMessage(error, 'Sign-in failed. Please try again.'))
     }
   })
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
+    if (authenticate.isPending) return
     setAlert(undefined)
     authenticate.mutate(userLogin)
   }, [userLogin, authenticate])
@@ -96,14 +63,8 @@ export const LoginPage: React.FC = () => {
     setUserLogin(prev => ({ ...prev, password: e.target.value }))
   }, [])
 
-  useEffect(() => {
-    const tokenQuery = searchParams.token;
-    if (tokenQuery) {
-      // Token from URL (e.g., from OpenID callback) - just login with it
-      // The isAuthenticated useEffect will handle navigation
-      login(tokenQuery)
-    }
-  }, [searchParams.token, login]);
+  if (isLoading) return <Loader label="Checking your session…" />
+  if (error) return <div className="w-full max-w-md px-4"><RequestError title="Unable to check your session" error={error} retry={retry} /></div>
 
 
   return (
@@ -135,13 +96,16 @@ export const LoginPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className='space-y-4'>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+              <Label htmlFor="email" className="text-sm font-medium">Username or email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   type="text"
-                  placeholder="Enter your email"
+                  placeholder="Enter your username or email"
+                  autoComplete="username"
+                  required
+                  disabled={authenticate.isPending}
                   value={userLogin.username}
                   onChange={handleUsernameChange}
                   className="pl-10"
@@ -156,6 +120,9 @@ export const LoginPage: React.FC = () => {
                   id="password"
                   type="password"
                   placeholder="Enter your password"
+                  autoComplete="current-password"
+                  required
+                  disabled={authenticate.isPending}
                   value={userLogin.password}
                   onChange={handlePasswordChange}
                   className="pl-10"
@@ -210,8 +177,8 @@ const OpenIDButton = () => {
   const searchParams = useSearch({ strict: false }) as { next?: string }
   
   // Only use safe redirect URLs for the next parameter
-  const safeNext = getSafeRedirectUrl(searchParams.next ?? null)
-  const nextParam = safeNext ?? window.location.pathname
+  const safeNext = safeRedirect(searchParams.next)
+  const nextParam = safeNext ? `/login?next=${encodeURIComponent(safeNext)}` : '/login'
 
   return (
     <a 

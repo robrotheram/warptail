@@ -6,7 +6,7 @@ data:
   config.yaml: |
     tailscale:
       api_key: ""
-      hostnmae: "TS_HOSTNAME"
+      hostname: "TS_HOSTNAME"
     dashboard:
       enabled: true
     kubernetes:
@@ -21,4 +21,3 @@ data:
         class: "traefik"
         service: "warptail-service"
     services: []
-    

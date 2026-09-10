@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"warptail/pkg/auth"
 	botprotect "warptail/pkg/botProtect"
@@ -40,6 +41,7 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 
 	mux.Use(api.proxy)
 	mux.Use(utils.RequestLogger.Middleware)
+	mux.Use(auth.DashboardRequestSecurity(config.Authentication.BaseURL))
 
 	mux.Use(cors.Handler(cors.Options{
 		AllowOriginFunc: func(r *http.Request, origin string) bool { return true },
@@ -47,7 +49,15 @@ func NewApi(router *router.Router, config utils.Config, ui embed.FS) *chi.Mux {
 		AllowedHeaders:  []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 	}))
 
-	api.authentication = auth.NewAuthentication(mux, db, config.Authentication)
+	api.authentication = auth.NewAuthentication(mux, db, config.Authentication, func(target *url.URL) bool {
+		route, err := api.GetHttpRoute(target.Hostname())
+		if err != nil || !route.Config().Private {
+			return false
+		}
+		// Only configured proxy origins may receive a cross-domain login token.
+		scheme := string(route.Config().Type)
+		return target.Scheme == scheme && (target.Port() == "" || (scheme == "https" && target.Port() == "443") || (scheme == "http" && target.Port() == "80"))
+	})
 	api.botProtect = botprotect.NewBotChallenge(mux, config.Authentication)
 
 	// Liveness probe - always returns ok if the process is alive

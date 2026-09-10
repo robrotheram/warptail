@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/context/AuthContext'
-import { updateUser } from '@/lib/api'
+import { updateProfile } from '@/lib/api'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createLazyFileRoute } from '@tanstack/react-router'
-import { CheckCircle2, InfoIcon, Mail, Shield, User, Calendar } from 'lucide-react'
-import { useState } from 'react'
+import { InfoIcon, Mail, Shield, User, Calendar } from 'lucide-react'
+import { toast } from 'sonner'
+import ProtectedRoute from '@/Protected'
+import { RequestError } from '@/components/RequestError'
 
 const getInitials = (name: string) => {
   return name
@@ -33,16 +35,14 @@ const formatDate = (date?: Date) => {
 }
 
 export const ProfilePage: React.FC = () => {
-  const { user, token } = useAuth()
+  const { user } = useAuth()
   const queryClient = useQueryClient()
-  const [showSuccess, setShowSuccess] = useState(false)
 
   const mutation = useMutation({
-    mutationFn: updateUser,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile', token] })
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 3000)
+    mutationFn: updateProfile,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['profile'] })
+      toast.success('Your profile has been updated.')
     },
   })
 
@@ -72,14 +72,7 @@ export const ProfilePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Success Message */}
-      {showSuccess && (
-        <Alert className="mb-6 bg-green-50 border-green-200 text-green-800">
-          <CheckCircle2 className="h-4 w-4 text-green-600" />
-          <AlertTitle>Success</AlertTitle>
-          <AlertDescription>Your profile has been updated successfully.</AlertDescription>
-        </Alert>
-      )}
+      {mutation.isError && <RequestError title="Unable to save your profile" error={mutation.error} />}
 
       {/* Profile Details Card */}
       <Card className="mb-6">
@@ -97,7 +90,7 @@ export const ProfilePage: React.FC = () => {
         </CardHeader>
         <CardContent>
           {user.type !== "openid" ? (
-            <UserEditForm mode='profile' user={user} onSubmit={mutation.mutate} />
+            <UserEditForm mode='profile' user={user} onSubmit={mutation.mutateAsync} />
           ) : (
             <div className="space-y-6">
               <Alert>
@@ -166,5 +159,5 @@ export const ProfilePage: React.FC = () => {
 
 
 export const Route = createLazyFileRoute('/profile')({
-  component: () => <ProfilePage/>,
+  component: () => <ProtectedRoute><ProfilePage /></ProtectedRoute>,
 })

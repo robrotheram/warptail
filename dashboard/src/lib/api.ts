@@ -163,170 +163,94 @@ export interface LoginToken {
     role: Role
 }
 
+// Storage can be unavailable in privacy mode. Keep the current session usable in memory.
+let memoryToken: string | null = null;
+let sessionVersion = 0;
 export const token = {
-    set: (newToken: string) => sessionStorage.setItem('token', newToken),
-    get: () => sessionStorage.getItem('token'),
-    remove: () => sessionStorage.removeItem('token')
+    set: (value: string) => {
+        sessionVersion++;
+        memoryToken = value;
+        try { sessionStorage.setItem('token', value); } catch { /* Memory fallback. */ }
+    },
+    get: (): string | null => {
+        try { return sessionStorage.getItem('token') ?? memoryToken; } catch { return memoryToken; }
+    },
+    remove: () => {
+        sessionVersion++;
+        memoryToken = null;
+        try { sessionStorage.removeItem('token'); } catch { /* Memory fallback. */ }
+    },
+};
+
+export const API_URL = '/api';
+export const AUTH_URL = '/auth';
+export const http = axios.create({ timeout: 20_000 });
+const requestVersions = new WeakMap<object, number>();
+http.interceptors.request.use(config => {
+    requestVersions.set(config, sessionVersion);
+    return config;
+});
+const expiredListeners = new Set<() => void>();
+export function onSessionExpired(listener: () => void) {
+    expiredListeners.add(listener);
+    return () => { expiredListeners.delete(listener); };
 }
 
-let BASE_URL = ""
-if (isDev) {
-    BASE_URL = "http://localhost:8001"
-}
-export const API_URL = `${BASE_URL}/api`
-export const AUTH_URL = `${BASE_URL}/auth`
+http.interceptors.response.use(response => {
+    if (response.config.headers.Authorization && requestVersions.get(response.config) !== sessionVersion) {
+        throw new axios.CanceledError('Session changed');
+    }
+    return response;
+}, error => {
+    // A late response from a previous account must never sign out the current account.
+    const credential = error.config?.headers?.Authorization;
+    if (axios.isAxiosError(error) && error.response?.status === 401 &&
+        credential && credential === token.get() && error.config && requestVersions.get(error.config) === sessionVersion && error.config?.url !== `${AUTH_URL}/login`) {
+        expiredListeners.forEach(listener => listener());
+    }
+    return Promise.reject(error);
+});
 
-const getAuth = (tkn?: string | null) => {
-    return {
-        Authorization: token.get() ?? tkn
-    } as Record<string, string>
-}
-
-
-
-
-export const login = async (login: Login): Promise<LoginToken> => {
-    const response = await axios.post(`${AUTH_URL}/login`, login);
-    if (response.status !== 200) throw new Error("Unauthorized");
-    return response.data;
+export function isUnauthorized(error: unknown): boolean {
+    return axios.isAxiosError(error) && error.response?.status === 401;
 }
 
-export const getConfig = async (): Promise<Config> => {
-    const response = await axios.get(`${BASE_URL}/config`, {
-        headers: getAuth(),
-    });
-    return response.data;
+export function errorMessage(error: unknown, fallback = 'Unable to complete the request. Please try again.'): string {
+    if (!axios.isAxiosError(error)) return fallback;
+    if (error.response?.status === 403) return 'You do not have permission to do this.';
+    if (error.response?.status === 401) return 'Your session has expired. Please sign in again.';
+    if (!error.response) return 'Unable to reach WarpTail. Check your connection and try again.';
+    return fallback;
 }
 
-// GET SERVICES
-export const getServices = async (): Promise<Service[]> => {
-    const response = await axios.get(`${API_URL}/services`, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
+const headers = (credential = token.get()) => credential ? { Authorization: credential } : {};
+type QueryRequest = { signal?: AbortSignal };
+const read = async <T,>(url: string, signal?: AbortSignal, credential = token.get()): Promise<T> =>
+    (await http.get<T>(url, { headers: headers(credential), signal })).data;
+const write = async <T,>(method: 'post' | 'put' | 'delete', url: string, data?: unknown): Promise<T> =>
+    (await http.request<T>({ method, url, data, headers: headers() })).data;
+const serviceURL = (id: string) => `${API_URL}/services/${encodeURIComponent(id)}`;
 
-// CREATE SERVICE
-export const createService = async (route: CreateService): Promise<Service> => {
-    const response = await axios.post(`${API_URL}/services`, route, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
-
-// GET A SPECIFIC SERVICE
-export const getService = async (name: string): Promise<Service> => {
-    const response = await axios.get(`${API_URL}/services/${name}`, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
-
-// UPDATE SERVICE
-export const updateService = async (svc: Service): Promise<Service> => {
-    const response = await axios.put(`${API_URL}/services/${svc.id}`, svc, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
-
-// DELETE SERVICE
-export const deleteService = async (svc: Service): Promise<void> => {
-    await axios.delete(`${API_URL}/services/${svc.id}`, {
-        headers: getAuth(),
-    });
-}
-
-// START SERVICE
-export const startService = async (name: string): Promise<Service> => {
-    const response = await axios.post(`${API_URL}/services/${name}/start`, {}, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
-
-// STOP SERVICE
-export const stopService = async (name: string): Promise<Service> => {
-    const response = await axios.post(`${API_URL}/services/${name}/stop`, {}, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
-
-// GET TAILSALE CONFIGURATION
-export const getTSConfig = async (): Promise<Tailsale> => {
-    const response = await axios.get(`${API_URL}/settings/tailscale`, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
-
-export const getLogs = async (type:string): Promise<string[]> => {
-    const response = await axios.get(`${API_URL}/settings/logs?type=${type}`, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
-
-
-export const getTSSTATUS = async (): Promise<TS_STATUS> => {
-    const response = await axios.get(`${API_URL}/settings/tailscale/status`, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
-
-// UPDATE TAILSALE CONFIGURATION
-export const updateTSConfig = async (config: Tailsale): Promise<Tailsale> => {
-    const response = await axios.post(`${API_URL}/settings/tailscale`, config, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
-
-
-
-export const getUsers = async (): Promise<User[]> => {
-    const response = await axios.get(`${API_URL}/user`, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
-
-export const createUser = async (user: User): Promise<User> => {
-    await axios.put(`${API_URL}/user`, user, {
-        headers: getAuth(),
-    });
-    return user;
-}
-
-export const updateUser = async (user: User): Promise<User> => {
-    console.log("HELLO")
-    await axios.post(`${API_URL}/user/${user.id}`, user, {
-        headers: getAuth(),
-    });
-    return user;
-}
-
-export const deleteUser = async (user: User): Promise<User> => {
-    await axios.delete(`${API_URL}/user/${user.id}`, {
-        headers: getAuth(),
-    });
-    return user;
-}
-
-
-export const getProfile = async (token?: string | null): Promise<User> => {
-    const response = await axios.get(`${AUTH_URL}/profile`, {
-        headers: getAuth(token),
-    });
-    return response.data;
-}
-
-
-export const getTailScaleNodes = async (): Promise<TailsaleNode[]> => {
-    const response = await axios.get(`${API_URL}/tailsale/nodes`, {
-        headers: getAuth(),
-    });
-    return response.data;
-}
+export const login = async (credentials: Login): Promise<LoginToken> =>
+    (await http.post<LoginToken>(`${AUTH_URL}/login`, credentials)).data;
+export const logout = () => write<void>('post', `${AUTH_URL}/logout`);
+export const getConfig = ({ signal }: QueryRequest = {}) => read<Config>('/config', signal, null);
+export const getServices = async ({ signal }: QueryRequest = {}) => (await read<Service[]>(`${API_URL}/services`, signal)) ?? [];
+export const createService = (service: CreateService) => write<Service>('post', `${API_URL}/services`, service);
+export const getService = (id: string, signal?: AbortSignal) => read<Service>(serviceURL(id), signal);
+export const updateService = (service: Service) => write<Service>('put', serviceURL(service.id), service);
+export const deleteService = (service: Service) => write<void>('delete', serviceURL(service.id));
+export const startService = (id: string) => write<Service>('post', `${serviceURL(id)}/start`, {});
+export const stopService = (id: string) => write<Service>('post', `${serviceURL(id)}/stop`, {});
+export const getTSConfig = ({ signal }: QueryRequest = {}) => read<Tailsale>(`${API_URL}/settings/tailscale`, signal);
+export const getTSSTATUS = ({ signal }: QueryRequest = {}) => read<TS_STATUS>(`${API_URL}/settings/tailscale/status`, signal);
+export const updateTSConfig = (config: Tailsale) => write<void>('post', `${API_URL}/settings/tailscale`, config);
+export const getLogs = async (type: string, signal?: AbortSignal) =>
+    (await read<string[]>(`${API_URL}/settings/logs?type=${encodeURIComponent(type)}`, signal)) ?? [];
+export const getUsers = async ({ signal }: QueryRequest = {}) => (await read<User[]>(`${API_URL}/user`, signal)) ?? [];
+export const createUser = (user: User) => write<void>('put', `${API_URL}/user`, user);
+export const updateUser = (user: User) => write<void>('post', `${API_URL}/user/${encodeURIComponent(user.id!)}`, user);
+export const updateProfile = (user: User) => write<User>('post', `${AUTH_URL}/profile`, user);
+export const deleteUser = (user: User) => write<void>('delete', `${API_URL}/user/${encodeURIComponent(user.id!)}`);
+export const getProfile = (credential: string | null = token.get(), signal?: AbortSignal) => read<User>(`${AUTH_URL}/profile`, signal, credential);
+export const getTailScaleNodes = async ({ signal }: QueryRequest = {}) => (await read<TailsaleNode[]>(`${API_URL}/tailsale/nodes`, signal)) ?? [];

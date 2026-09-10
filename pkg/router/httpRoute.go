@@ -2,30 +2,35 @@ package router
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"warptail/pkg/utils"
-
-	"tailscale.com/tsnet"
 )
 
 type HTTPRoute struct {
-	config   utils.RouteConfig
-	status   RouterStatus
-	data     *utils.TimeSeries
-	latency  time.Duration
-	heatbeat *time.Ticker
+	mu          sync.RWMutex
+	lifecycleMu sync.Mutex
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
+	config      utils.RouteConfig
+	status      RouterStatus
+	data        *utils.TimeSeries
+	latency     time.Duration
 	*http.Client
 	heartbeatClient *http.Client
 }
 
-func NewHTTPRoute(config utils.RouteConfig, server *tsnet.Server) *HTTPRoute {
-	client := server.HTTPClient()
+func NewHTTPRoute(config utils.RouteConfig, backend Backend) *HTTPRoute {
+	client := backendHTTPClient(backend)
 
 	// Configure optimized transport for connection pooling and keep-alive
 	if transport, ok := client.Transport.(*http.Transport); ok {
@@ -44,7 +49,7 @@ func NewHTTPRoute(config utils.RouteConfig, server *tsnet.Server) *HTTPRoute {
 	}
 
 	// Create separate client for heartbeat to avoid affecting main traffic
-	heartbeatClient := server.HTTPClient()
+	heartbeatClient := backendHTTPClient(backend)
 	heartbeatClient.Timeout = 5 * time.Second
 
 	return &HTTPRoute{
@@ -56,62 +61,83 @@ func NewHTTPRoute(config utils.RouteConfig, server *tsnet.Server) *HTTPRoute {
 	}
 }
 
+func backendHTTPClient(backend Backend) *http.Client {
+	return &http.Client{Transport: &http.Transport{
+		DialContext:           backend.Dial,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: time.Second,
+		IdleConnTimeout:       90 * time.Second,
+	}}
+}
+
 func (route *HTTPRoute) Update(config utils.RouteConfig) error {
+	route.mu.Lock()
+	defer route.mu.Unlock()
 	route.config = config
-
-	// Update client timeout if proxy settings changed
-	if config.ProxySettings != nil && config.ProxySettings.Timeout > 0 {
-		route.Client.Timeout = time.Duration(config.ProxySettings.Timeout) * time.Second
-	} else {
-		// Reset to default timeout
-		route.Client.Timeout = 30 * time.Second
-	}
-
 	return nil
 }
 func (route *HTTPRoute) Start() error {
+	route.lifecycleMu.Lock()
+	defer route.lifecycleMu.Unlock()
+	route.mu.Lock()
+	defer route.mu.Unlock()
+	if route.status == RUNNING {
+		return nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	route.cancel = cancel
 	route.status = RUNNING
-	go route.heartbeat(5 * time.Second)
+	route.wg.Add(1)
+	go route.heartbeat(ctx)
 	return nil
 }
 func (route *HTTPRoute) Stop() error {
+	route.lifecycleMu.Lock()
+	defer route.lifecycleMu.Unlock()
+	route.mu.Lock()
 	route.status = STOPPED
+	if route.cancel != nil {
+		route.cancel()
+	}
+	route.mu.Unlock()
+	route.wg.Wait()
+	route.CloseIdleConnections()
+	route.heartbeatClient.CloseIdleConnections()
 	return nil
 }
-
 func (route *HTTPRoute) Status() RouterStatus {
+	route.mu.RLock()
+	defer route.mu.RUnlock()
 	return route.status
 }
-
 func (route *HTTPRoute) Config() utils.RouteConfig {
+	route.mu.RLock()
+	defer route.mu.RUnlock()
 	return route.config
 }
-
-func (route *HTTPRoute) Stats() utils.TimeSeriesData {
-	return route.data.Data
-}
+func (route *HTTPRoute) Stats() utils.TimeSeriesData { return route.data.Snapshot() }
 
 func (route *HTTPRoute) getUrl() (*url.URL, error) {
-	return url.Parse(fmt.Sprintf("http://%s:%d", route.config.Machine.Address, route.config.Machine.Port))
+	return url.Parse("http://" + machineAddress(route.Config().Machine))
 }
 
-func (route *HTTPRoute) getTargetUrl(requestPath string) (*url.URL, string, bool) {
+func getTargetUrl(config utils.RouteConfig, requestPath string) (*url.URL, string, bool) {
 	// Check for path-based routing rules
-	if route.config.ProxySettings != nil && len(route.config.ProxySettings.Rules) > 0 {
-		for _, rule := range route.config.ProxySettings.Rules {
+	if config.ProxySettings != nil && len(config.ProxySettings.Rules) > 0 {
+		for _, rule := range config.ProxySettings.Rules {
 			if strings.HasPrefix(requestPath, rule.Path) {
 				targetHost := rule.TargetHost
 				targetPort := rule.TargetPort
 
 				// Use default machine if not specified in rule
 				if targetHost == "" {
-					targetHost = route.config.Machine.Address
+					targetHost = config.Machine.Address
 				}
 				if targetPort == 0 {
-					targetPort = int(route.config.Machine.Port)
+					targetPort = int(config.Machine.Port)
 				}
 
-				targetUrl, err := url.Parse(fmt.Sprintf("http://%s:%d", targetHost, targetPort))
+				targetUrl, err := url.Parse("http://" + net.JoinHostPort(targetHost, strconv.Itoa(targetPort)))
 				if err != nil {
 					continue
 				}
@@ -134,17 +160,23 @@ func (route *HTTPRoute) getTargetUrl(requestPath string) (*url.URL, string, bool
 	}
 
 	// Default to original machine
-	defaultUrl, _ := route.getUrl()
+	defaultUrl, _ := url.Parse("http://" + machineAddress(config.Machine))
 	return defaultUrl, requestPath, false
 }
 
 func (route *HTTPRoute) Handle(w http.ResponseWriter, r *http.Request) {
-	if route.status != RUNNING {
+	if route.Status() != RUNNING {
 		w.WriteHeader(http.StatusBadGateway)
 		return
 	}
 
-	targetUrl, rewritePath, _ := route.getTargetUrl(r.URL.Path)
+	config := route.Config()
+	if config.ProxySettings != nil && config.ProxySettings.Timeout > 0 {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Duration(config.ProxySettings.Timeout)*time.Second)
+		defer cancel()
+		r = r.WithContext(ctx)
+	}
+	targetUrl, rewritePath, _ := getTargetUrl(config, r.URL.Path)
 	if targetUrl == nil {
 		w.WriteHeader(http.StatusBadGateway)
 		return
@@ -166,17 +198,17 @@ func (route *HTTPRoute) Handle(w http.ResponseWriter, r *http.Request) {
 		req.URL.Path = rewritePath
 
 		// Handle proxy settings
-		if route.config.ProxySettings != nil {
+		if config.ProxySettings != nil {
 			// Preserve or modify host header
-			if route.config.ProxySettings.PreserveHost {
+			if config.ProxySettings.PreserveHost {
 				req.Host = r.Host
 			} else {
 				req.Host = targetUrl.Host
 			}
 
 			// Apply custom headers
-			if route.config.ProxySettings.CustomHeaders != nil {
-				headers := route.config.ProxySettings.CustomHeaders
+			if config.ProxySettings.CustomHeaders != nil {
+				headers := config.ProxySettings.CustomHeaders
 
 				// Remove headers
 				for _, headerName := range headers.Remove {
@@ -214,8 +246,8 @@ func (route *HTTPRoute) Handle(w http.ResponseWriter, r *http.Request) {
 
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		// Apply response header modifications if configured
-		if route.config.ProxySettings != nil && route.config.ProxySettings.CustomHeaders != nil {
-			headers := route.config.ProxySettings.CustomHeaders
+		if config.ProxySettings != nil && config.ProxySettings.CustomHeaders != nil {
+			headers := config.ProxySettings.CustomHeaders
 
 			// Remove response headers
 			for _, headerName := range headers.Remove {
@@ -258,35 +290,36 @@ func (route *HTTPRoute) Handle(w http.ResponseWriter, r *http.Request) {
 	route.data.LogRecived(uint64(rr.responseSize))
 }
 
-func (route *HTTPRoute) heartbeat(timeout time.Duration) {
-	route.heatbeat = time.NewTicker(timeout)
-	go func() {
-		for range route.heatbeat.C {
-			if route.status != RUNNING {
-				route.latency = time.Duration(-1)
-				route.heatbeat.Stop()
-				route.heatbeat = nil
-				return
-			}
+func (route *HTTPRoute) heartbeat(ctx context.Context) {
+	defer route.wg.Done()
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 			start := time.Now()
-			url, err := route.getUrl()
-			if err != nil {
-				route.latency = time.Duration(-1)
-				continue
+			target, err := route.getUrl()
+			latency := time.Duration(-1)
+			if err == nil {
+				req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+				if reqErr == nil {
+					resp, reqErr := route.heartbeatClient.Do(req)
+					if reqErr == nil {
+						resp.Body.Close()
+						latency = time.Since(start)
+					}
+				}
 			}
-			// Use dedicated heartbeat client to avoid affecting main traffic
-			resp, err := route.heartbeatClient.Get(url.String())
-			if err != nil {
-				utils.Logger.Error(err, "Error pinging server", "url", url.String())
-				route.latency = time.Duration(-1)
-				continue
-			}
-			resp.Body.Close()
-			route.latency = time.Since(start)
+			route.mu.Lock()
+			route.latency = latency
+			route.mu.Unlock()
 		}
-	}()
+	}
 }
-
 func (route *HTTPRoute) Ping() time.Duration {
+	route.mu.RLock()
+	defer route.mu.RUnlock()
 	return route.latency
 }

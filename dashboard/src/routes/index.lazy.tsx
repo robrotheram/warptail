@@ -6,7 +6,7 @@ import ProtectedRoute from '@/Protected'
 import { createLazyFileRoute } from '@tanstack/react-router'
 
 export const Route = createLazyFileRoute('/')({
-  component: () => {
+  component: function Page() {
     const {user} = useAuth()
     const {read_only} = useConfig()
     return <ProtectedRoute><RouteList read_only={read_only || user?.role!==Role.ADMIN}/></ProtectedRoute>

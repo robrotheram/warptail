@@ -1,16 +1,28 @@
-import { getTSSTATUS, TS_STATE } from "@/lib/api";
+import { getTSSTATUS, TS_STATE, Role } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 
+import { useAuth } from '@/context/AuthContext';
+
 export const Banner = () => {
 
+    const { user, isLoggingOut } = useAuth();
     const { data: tsStatus } = useQuery({
         queryKey: ['settings'],
+        enabled: user?.role === Role.ADMIN && !isLoggingOut,
         queryFn: getTSSTATUS,
-        refetchOnWindowFocus: true,
+        // Authentication happens outside the dashboard, even while this cache is fresh.
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: 'always',
+        refetchOnReconnect: 'always',
+        // Tailscale can finish connecting after the user has already returned.
+        refetchInterval: query => {
+            const state = query.state.data?.state;
+            return state === TS_STATE.RUNNING || state === TS_STATE.STOPPED ? false : 2000;
+        },
+        refetchIntervalInBackground: false,
     })
 
-    // Check if data is empty and error indicates authentication needed
     const needsTailscaleAuth = tsStatus?.state === TS_STATE.NEEDS_LOGIN
 
     if (needsTailscaleAuth) {

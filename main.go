@@ -59,7 +59,11 @@ func ApplicationCmd(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 	router := router.NewRouter()
-	go router.Init(config)
+	go func() {
+		if err := router.Init(config); err != nil {
+			utils.Logger.Error(err, "Router initialization failed")
+		}
+	}()
 
 	if utils.IsEmptyStruct(config.Kubernetes) {
 		utils.Logger.Info("Starting Server")

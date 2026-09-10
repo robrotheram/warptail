@@ -86,12 +86,15 @@ func (store *Users) Update(user User, id string, ctx context.Context) error {
 		return err
 	}
 	existingUser.Email = user.Email
+	existingUser.Name = user.Name
 	existingUser.Role = user.Role
-	existingUser.PasswordReset = false
 
 	if len(user.Password) > 0 {
 		existingUser.Password = user.Password
-		existingUser.HashPassword()
+		if err := existingUser.HashPassword(); err != nil {
+			return err
+		}
+		existingUser.PasswordReset = false
 	}
 
 	_, err := store.db.NewUpdate().Model(&existingUser).Where("id = ?", id).Exec(ctx)

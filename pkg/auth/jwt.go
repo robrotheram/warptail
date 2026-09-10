@@ -26,6 +26,7 @@ func NewJWTAuthProvider(config utils.AuthenticationConfig, sessionStore *session
 }
 
 func (auth *JWTAuth) Login(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 
 	var loginData struct {
 		Username string `json:"Username"`
@@ -51,7 +52,10 @@ func (auth *JWTAuth) Login(w http.ResponseWriter, r *http.Request) {
 
 		session, _ := auth.sessionStore.Get(r, "auth-session")
 		session.Values["jwt"] = token
-		session.Save(r, w)
+		if err := session.Save(r, w); err != nil {
+			http.Error(w, "Unable to save session", http.StatusInternalServerError)
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{

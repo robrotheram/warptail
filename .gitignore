@@ -10,3 +10,7 @@ config
 
 warptail.db
 logs/**
+
+# Browser test artifacts
+dashboard/test-results/
+dashboard/playwright-report/

@@ -28,6 +28,7 @@ type TailscaleHostProps = {
 }
 
 export const TailscaleHost = ({ route, updateRoute }: TailscaleHostProps) => {
+  const fieldId = React.useId()
   const { machine } = route
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
@@ -37,7 +38,7 @@ export const TailscaleHost = ({ route, updateRoute }: TailscaleHostProps) => {
   })
   const options = React.useMemo(() => {
     if (data) {
-      let options = data.map((node) => ({
+      const options = data.map((node) => ({
         label: node.hostname,
         value: node.ip,
       }))
@@ -71,7 +72,6 @@ export const TailscaleHost = ({ route, updateRoute }: TailscaleHostProps) => {
   }
 
   const handleNodeChange = (value: string) => {
-    console.log("Node Change", value)
     const _machine = options.find((option) => option.value === value)
     updateRoute({
       ...route, machine: {
@@ -99,11 +99,11 @@ export const TailscaleHost = ({ route, updateRoute }: TailscaleHostProps) => {
   return (
     <div className="md:col-span-5 grid md:grid-cols-2 col-span-6 gap-4 w-full">
       <div>
-        <Label htmlFor="host">Tailscale Host</Label>
+        <Label htmlFor={`${fieldId}-host`}>Tailscale Host</Label>
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
-              {machine?.address ? options.find((option) => option.value === machine.address)?.label || inputValue : "Select node..."}
+            <Button variant="outline" id={`${fieldId}-host`} role="combobox" aria-expanded={open} className="w-full justify-between">
+              {machine?.address ? options.find((option) => option.value === machine.address)?.label || machine.address : "Select node..."}
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
@@ -129,6 +129,7 @@ export const TailscaleHost = ({ route, updateRoute }: TailscaleHostProps) => {
                     <CommandItem
                       key={option.value}
                       value={option.value}
+                      keywords={[option.label]}
                       onSelect={(currentValue) => {
                         handleNodeChange(currentValue)
                         setOpen(false)
@@ -145,12 +146,14 @@ export const TailscaleHost = ({ route, updateRoute }: TailscaleHostProps) => {
         </Popover>
       </div>
       <div>
-        <Label htmlFor="port">Tailscale Port</Label>
+        <Label htmlFor={`${fieldId}-port`}>Tailscale Port</Label>
         <Input
-          id="port"
+          id={`${fieldId}-port`}
           name="port"
-          type="text"
-          value={machine?.port}
+          type="number"
+          min={1}
+          max={65535}
+          value={machine?.port ?? ''}
           onChange={handlePortChange}
         />
       </div>

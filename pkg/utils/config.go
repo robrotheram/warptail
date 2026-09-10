@@ -15,7 +15,25 @@ import (
 
 type TailscaleConfig struct {
 	AuthKey  string `yaml:"auth_key"`
-	Hostname string `yaml:"hostnmae"`
+	Hostname string `yaml:"hostname"`
+}
+
+// Accept the legacy misspelling, but write the canonical key on the next save.
+func (config *TailscaleConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	var value struct {
+		AuthKey        string  `yaml:"auth_key"`
+		Hostname       *string `yaml:"hostname"`
+		LegacyHostname string  `yaml:"hostnmae"`
+	}
+	if err := unmarshal(&value); err != nil {
+		return err
+	}
+	config.AuthKey = value.AuthKey
+	config.Hostname = value.LegacyHostname
+	if value.Hostname != nil {
+		config.Hostname = *value.Hostname
+	}
+	return nil
 }
 
 type Config struct {

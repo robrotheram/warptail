@@ -320,6 +320,77 @@ Below are the custom metrics available for Warptail, along with their descriptio
 
 ---
 
+## Backend development
+
+The backend requires **Go 1.27.1 or newer** and embeds **Tailscale v1.102.3**.
+The Docker builder and release workflow use the same Go version as the module.
+Kubernetes client libraries and controller-runtime are updated together to their
+compatible v0.37 / v0.25 releases. The old gVisor override is removed so tsnet uses
+its upstream networking stack dependency.
+
+TCP forwarding supports concurrent clients, half-closes (including protocols
+that wait for EOF before replying), and cancellation of pending connections on
+shutdown. UDP uses one connected backend socket per public client, preserving
+that client's source port and returning replies only to that client. Sessions
+expire after 30 seconds without traffic in either direction. Each UDP route is
+limited to 1,024 sessions and 64 queued datagrams per client; excess traffic is
+dropped. IPv4, IPv6 and Tailscale DNS names are accepted as backend addresses.
+Publish the relevant TCP **and** UDP ports in Docker or Kubernetes when a service
+uses both protocols.
+
+Existing configuration remains compatible. The Tailscale YAML hostname key is
+now `hostname`; the legacy `hostnmae` spelling is still accepted and is normalized
+on save. Disabled services stay disabled when settings change. Listener startup
+errors are returned to the API instead of being silently discarded.
+
+### Preparing for another network provider
+
+HTTP, TCP and UDP routes depend on the small `router.Backend` interface in
+`pkg/router/backend.go`. Tailscale-specific dialing, status and peer discovery
+are contained in `pkg/router/tailscale.go`. The default `router.NewRouter()` still
+uses embedded Tailscale.
+
+A Go integration can supply an externally managed backend:
+
+```go
+rt := router.NewRouterWithBackend(&router.SystemBackend{})
+err := rt.Init(config)
+```
+
+`SystemBackend` uses the host routing table and resolver. It can therefore reach
+Nebula or native WireGuard addresses when those tunnels and routes have already
+been configured on the host (or inside the container's network namespace).
+WarpTail does not create these tunnels, manage their keys, or discover their
+peers. Backend selection is currently a Go constructor option; the settings UI
+and YAML network management remain Tailscale-specific. A future provider can
+implement `Backend` without changing proxy forwarding. UDP latency probes are
+optional through `BackendPinger`; an unprobed UDP target reports unavailable
+latency rather than treating a successful UDP dial as proof of reachability.
+
+### Checking the backend
+
+```sh
+go test -race ./pkg/...
+go test -race -tags=integration ./pkg/router -run TestTailscaleProxyIntegration -timeout 90s
+go vet ./pkg/...
+```
+
+The integration test runs real tsnet nodes against local control, DERP and STUN
+servers. It checks TCP half-closes and UDP client isolation over IPv4, IPv6 and
+MagicDNS, without an account, auth key or access to a production tailnet. The
+`integration` build tag keeps these Tailscale test helpers separate from normal
+tests and production builds. CI runs both suites.
+
+Building the application also requires the embedded dashboard assets:
+
+```sh
+cd dashboard
+npm ci
+npm run build
+cd ..
+CGO_ENABLED=0 go build .
+```
+
 ## Contributing
 To contribute to WarpTail, please open an issue or submit a pull request. Contributions are always welcome!
 

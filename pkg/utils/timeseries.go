@@ -66,6 +66,15 @@ func (ts *TimeSeries) LogSent(value uint64) {
 	ts.Data.Add(ProxyStats{Sent: value})
 }
 
+// Snapshot returns an independent copy for API readers while traffic is logged.
+func (ts *TimeSeries) Snapshot() TimeSeriesData {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	data := ts.Data
+	data.Points = append([]DataPoint{}, ts.Data.Points...)
+	return data
+}
+
 func (ts *TimeSeries) LogRecived(value uint64) {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()

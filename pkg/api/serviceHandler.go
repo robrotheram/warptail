@@ -137,7 +137,10 @@ func (api *api) handleStartRoute(w http.ResponseWriter, r *http.Request) {
 		utils.WriteErrorResponse(w, err)
 		return
 	}
-	service.Start()
+	if err := service.Start(); err != nil {
+		utils.WriteErrorResponse(w, utils.CustomError(http.StatusInternalServerError, err.Error()))
+		return
+	}
 	api.Save()
 	utils.WriteData(w, service.Status(true))
 }

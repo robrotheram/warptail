@@ -3,11 +3,9 @@ package router
 import (
 	"fmt"
 	"warptail/pkg/utils"
-
-	"tailscale.com/tsnet"
 )
 
-func NewRoute(config utils.RouteConfig, ts *tsnet.Server) (Route, error) {
+func NewRoute(config utils.RouteConfig, ts Backend) (Route, error) {
 	switch config.Type {
 	case utils.UDP:
 		return NewUDPRoute(config, ts), nil

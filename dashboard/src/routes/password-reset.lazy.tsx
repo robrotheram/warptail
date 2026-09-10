@@ -2,16 +2,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { useAuth } from '@/context/AuthContext'
-import { updateUser } from '@/lib/api'
+import { useAuth, Loader } from '@/context/AuthContext'
+import { updateProfile } from '@/lib/api'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createLazyFileRoute, useNavigate } from '@tanstack/react-router'
+import { createLazyFileRoute, useSearch } from '@tanstack/react-router'
 import { AlertCircle, KeyRound } from 'lucide-react'
 import { useState } from 'react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
 import { calculateStrength, getStrengthColor, getStrengthLabel } from '@/components/utils/PasswordStrengthMeter'
 import * as yup from 'yup'
+import { Redirect } from '@/components/Redirect'
+import { RequestError } from '@/components/RequestError'
+import { safeRedirect } from '@/lib/redirect'
 import { useConfig } from '@/context/ConfigContext'
 
 const PasswordResetSchema = yup.object({
@@ -29,9 +32,9 @@ const PasswordResetSchema = yup.object({
 })
 
 export const PasswordResetPage: React.FC = () => {
-  const { user, token } = useAuth()
+  const { user, isLoading, error, retry, logout, isLoggingOut } = useAuth()
   const { site_name, site_logo } = useConfig()
-  const navigate = useNavigate()
+  const search = useSearch({ strict: false }) as { next?: string }
   const queryClient = useQueryClient()
 
   const [password, setPassword] = useState('')
@@ -40,29 +43,26 @@ export const PasswordResetPage: React.FC = () => {
   const [alert, setAlert] = useState<string>()
 
   const mutation = useMutation({
-    mutationFn: updateUser,
-    onSuccess: () => {
+    mutationFn: updateProfile,
+    onSuccess: async () => {
       // Invalidate and refetch the profile to get updated user data
-      queryClient.invalidateQueries({ queryKey: ['profile', token] })
-      navigate({ to: '/' })
+      setPassword('')
+      setConfirmPassword('')
+      await queryClient.invalidateQueries({ queryKey: ['profile'] })
     },
     onError: () => {
       setAlert('Failed to update password. Please try again.')
     },
   })
 
-  // Redirect if no user or password_reset is not required
-  if (!user) {
-    return null
-  }
-
-  if (!user.password_reset) {
-    navigate({ to: '/' })
-    return null
-  }
+  if (isLoading || isLoggingOut) return <Loader label="Checking your session…" />
+  if (error) return <RequestError title="Unable to check your session" error={error} retry={retry} />
+  if (!user) return <Redirect to="/login" />
+  if (!user.password_reset) return <Redirect to={safeRedirect(search.next) ?? '/'} />
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (mutation.isPending) return
     setErrors({})
     setAlert(undefined)
 
@@ -107,6 +107,8 @@ export const PasswordResetPage: React.FC = () => {
             <Label htmlFor="password">New Password</Label>
             <Input
               type="password"
+                autoComplete="new-password"
+                disabled={mutation.isPending}
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -133,6 +135,8 @@ export const PasswordResetPage: React.FC = () => {
             <Label htmlFor="confirmPassword">Confirm Password</Label>
             <Input
               type="password"
+                autoComplete="new-password"
+                disabled={mutation.isPending}
               id="confirmPassword"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -158,6 +162,7 @@ export const PasswordResetPage: React.FC = () => {
             {mutation.isPending ? 'Updating...' : 'Change Password'}
           </Button>
         </form>
+        <Button variant="ghost" className="w-full mt-3" disabled={mutation.isPending} onClick={() => void logout()}>Sign out</Button>
       </CardContent>
     </Card>
   )

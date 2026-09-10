@@ -1,4 +1,4 @@
-import { ErrorMessage, Field, Form, Formik, useFormikContext } from "formik"
+import { ErrorMessage, Field, Form, Formik, useFormikContext, FieldInputProps } from "formik"
 import { Input } from "../ui/input"
 import { Button } from "../ui/button"
 import { Label } from "../ui/label"
@@ -37,6 +37,7 @@ export const EditUserValidationSchema = yup.object({
         .min(3, 'name must be at least 3 characters long')
         .max(200, 'name must be at most 200 characters long'),
     password: yup.string()
+        .transform(value => value === '' ? undefined : value)
         .optional()
         .min(8, 'Password must be at least 8 characters long')
         .max(50, 'Password must be at most 50 characters long')
@@ -58,6 +59,7 @@ export const ProfileValidationSchema = yup.object({
         .min(3, 'name must be at least 3 characters long')
         .max(200, 'name must be at most 200 characters long'),
     password: yup.string()
+        .transform(value => value === '' ? undefined : value)
         .optional()
         .min(8, 'Password must be at least 8 characters long')
         .max(50, 'Password must be at most 50 characters long')
@@ -74,12 +76,12 @@ export const ProfileValidationSchema = yup.object({
 type UserEditFormProps = {
     mode: 'create' | 'edit' | "profile";
     user: User;
-    onSubmit: (open: User) => void;
+    onSubmit: (user: User) => Promise<unknown>;
     onCancel?: () => void;
 }
 
 export const UserEditForm = ({ mode, user, onSubmit, onCancel }: UserEditFormProps) => {
-    var validationSchema
+    let validationSchema
     switch(mode){
         case "create": validationSchema = CreateUserValidationSchema; break;
         case "edit":validationSchema = EditUserValidationSchema; break;
@@ -87,24 +89,29 @@ export const UserEditForm = ({ mode, user, onSubmit, onCancel }: UserEditFormPro
     }
 
     return <Formik
-        initialValues={user}
+        initialValues={{ ...user, password: '' }}
         validationSchema={validationSchema}
-        onSubmit={onSubmit}
+        onSubmit={async (values, helpers) => {
+            try {
+                await onSubmit({ ...values, password: values.password || undefined });
+                helpers.resetForm({ values: { ...values, password: '' } });
+            } catch { /* The owning mutation displays the error and preserves the draft. */ }
+        }}
     >
-        <Form className="flex flex-col space-y-4">
+        {({ isSubmitting }) => <Form className="flex flex-col space-y-4"><fieldset disabled={isSubmitting} className="contents">
             <div className="flex flex-col gap-1">
-                <label htmlFor="username">Name:</label>
+                <label htmlFor="name">Name:</label>
                 <Field name="name">
-                    {({ field }: { field: any }) => (
+                    {({ field }: { field: FieldInputProps<string> }) => (
                         <Input {...field} id="name" placeholder="Enter your name" disabled={user.type==="openid"} />
                     )}
                 </Field>
-                <ErrorWithIcon name="username" />
+                <ErrorWithIcon name="name" />
             </div>
             <div className="flex flex-col gap-1">
                 <Label htmlFor="email">Email</Label>
                 <Field name="email">
-                    {({ field }: { field: any }) => (
+                    {({ field }: { field: FieldInputProps<string> }) => (
                         <Input {...field} type="email" id="email" placeholder="Enter your email" disabled={user.type==="openid"} />
                     )}
                 </Field>
@@ -113,14 +120,14 @@ export const UserEditForm = ({ mode, user, onSubmit, onCancel }: UserEditFormPro
             {user.type!=="openid" &&<PasswordField />}
             {mode !== "profile" &&<RoleField />}
             <div className="flex gap-2 justify-end">
-                <Button className="w-full" type="submit">
-                    {mode === 'create' ? 'Create' : 'Edit'}
+                <Button className="w-full" type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Saving…' : mode === 'create' ? 'Create user' : 'Save changes'}
                 </Button>
-                {onCancel&&<Button className="w-full" variant={'secondary'} onClick={() => onCancel()}>
+                {onCancel&&<Button className="w-full" variant={'secondary'} type="button" disabled={isSubmitting} onClick={() => onCancel()}>
                     Cancel
                 </Button>}
             </div>
-        </Form>
+        </fieldset></Form>}
     </Formik>
 }
 
@@ -145,7 +152,7 @@ const RoleField = () => {
                 onValueChange={(value) => setFieldValue('role', value)}
                 value={values.role}
             >
-                <SelectTrigger className="w-full">
+                <SelectTrigger id="role" className="w-full">
                     <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -165,12 +172,13 @@ const PasswordField = () => {
     const { setFieldValue, values } = useFormikContext<{ password: string }>();
     return (
         <div className='flex flex-col gap-1'>
-            <Label htmlFor="role">Password</Label>
+            <Label htmlFor="password">Password</Label>
             <Input
-                value={values.password}
+                value={values.password ?? ''}
                 onChange={(e) => { setFieldValue("password", e.target.value, true) }}
                 type="password"
                 id="password"
+                autoComplete="new-password"
                 placeholder="Enter your password"
             />
             {values.password &&

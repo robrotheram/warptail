@@ -3,6 +3,7 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"regexp"
 )
 
@@ -92,6 +93,9 @@ func ValidatePort(port int) error {
 }
 
 func ValidateHostname(hostname string) error {
+	if _, err := netip.ParseAddr(hostname); err == nil {
+		return nil
+	}
 	if len(hostname) > 255 {
 		return errors.New("hostname is too long: must not exceed 255 characters")
 	}

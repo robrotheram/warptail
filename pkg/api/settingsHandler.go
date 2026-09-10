@@ -13,8 +13,14 @@ func (api *api) handleTailscaleSettings(w http.ResponseWriter, r *http.Request) 
 func (api *api) handleUpdateTailscaleSettings(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	var tsc utils.TailscaleConfig
-	decoder.Decode(&tsc)
-	api.SaveTailScale(tsc)
+	if err := decoder.Decode(&tsc); err != nil {
+		utils.WriteErrorResponse(w, utils.BadReqError("invalid Tailscale settings"))
+		return
+	}
+	if err := api.SaveTailScale(tsc); err != nil {
+		utils.WriteErrorResponse(w, utils.CustomError(http.StatusServiceUnavailable, err.Error()))
+		return
+	}
 	utils.WriteStatus(w, http.StatusOK)
 }
 

@@ -1,20 +1,19 @@
 package router
 
 import (
-	"context"
 	"net/http"
 	"sync"
 	"warptail/pkg/utils"
 
 	"github.com/gosimple/slug"
-	"tailscale.com/tsnet"
 )
 
 var ServiceNotFoundError = utils.NotFoundError("service not found")
 
 type Router struct {
 	Services    map[string]*Service
-	ts          *tsnet.Server
+	backend     Backend
+	networkMu   sync.Mutex
 	Controllers []Controller
 	mu          sync.RWMutex
 	ready       bool
@@ -27,8 +26,15 @@ type RouteInfo struct {
 }
 
 func NewRouter() *Router {
+	return NewRouterWithBackend(&tailscaleBackend{})
+}
+
+// NewRouterWithBackend accepts an externally managed network backend.
+// Its lifecycle belongs to the caller. NewRouter uses embedded Tailscale.
+func NewRouterWithBackend(backend Backend) *Router {
 	router := &Router{
 		Services:    make(map[string]*Service),
+		backend:     backend,
 		Controllers: []Controller{},
 		ready:       false,
 	}
@@ -50,7 +56,7 @@ func (r *Router) SetReady(ready bool) {
 }
 
 func (r *Router) Init(config utils.Config) error {
-	err := r.UpdateTailscale(config.Tailscale)
+	err := r.initBackend(config.Tailscale)
 	if err != nil {
 		return err
 	}
@@ -65,15 +71,19 @@ func (r *Router) Init(config utils.Config) error {
 }
 
 func (r *Router) Reload(config utils.Config) error {
-	if err := r.UpdateTailscale(config.Tailscale); err != nil {
+	if err := r.initBackend(config.Tailscale); err != nil {
 		return err
 	}
 	for _, svc := range config.Services {
 		if r.DoesExists(svc.Name) {
 			id := slug.Make(svc.Name)
-			r.Update(id, svc)
+			if _, err := r.Update(id, svc); err != nil {
+				return err
+			}
 		} else {
-			r.Create(svc)
+			if _, err := r.Create(svc); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -93,6 +103,7 @@ func (r *Router) Reload(config utils.Config) error {
 			delete(r.Services, key)
 		}
 	}
+	r.ready = true
 	r.mu.Unlock()
 	return nil
 }
@@ -112,13 +123,18 @@ func (r *Router) Create(svc utils.ServiceConfig) (*Service, *utils.RouterError) 
 	if _, ok := r.Services[id]; ok {
 		return nil, utils.CustomError(http.StatusConflict, "service already exists unable to load config")
 	}
-	service := NewService(svc, r.ts)
-	r.Services[service.Id] = service
-
-	if service.Enabled {
-		service.Start()
+	service, err := NewService(svc, r.backend)
+	if err != nil {
+		return nil, utils.BadReqError(err.Error())
 	}
 
+	if service.Enabled {
+		if err := service.Start(); err != nil {
+			return nil, utils.CustomError(http.StatusInternalServerError, err.Error())
+		}
+	}
+
+	r.Services[service.Id] = service
 	return service, nil
 }
 
@@ -163,7 +179,9 @@ func (r *Router) Update(id string, svc utils.ServiceConfig) (*Service, *utils.Ro
 	if !ok {
 		return nil, ServiceNotFoundError
 	}
-	existing.Update(svc, r.ts)
+	if err := existing.Update(svc, r.backend); err != nil {
+		return nil, err
+	}
 	if id != existing.Id {
 		r.Services[existing.Id] = existing
 		delete(r.Services, id)
@@ -192,10 +210,14 @@ func (r *Router) Save() {
 }
 
 func (r *Router) StartAll() {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for _, svc := range r.Services {
-		svc.Start()
+		if svc.Enabled {
+			if err := svc.Start(); err != nil {
+				utils.Logger.Error(err, "Unable to start service", "service", svc.Name)
+			}
+		}
 	}
 }
 
@@ -203,32 +225,8 @@ func (r *Router) StopAll() {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, svc := range r.Services {
-		svc.Stop()
-	}
-}
-
-func (r *Router) GetPeers() ([]TailscalePeers, *utils.RouterError) {
-	c, _ := r.ts.LocalClient()
-	status, err := c.Status(context.Background())
-	if err != nil {
-		return []TailscalePeers{}, utils.CustomError(http.StatusInternalServerError, "unable to get tailscale status")
-	}
-	nodes := []TailscalePeers{}
-	seen := make(map[string]bool)
-	for _, peer := range status.Peer {
-		if len(peer.TailscaleIPs) == 0 {
-			continue
+		for _, route := range svc.Routes {
+			route.Stop()
 		}
-		ip := peer.TailscaleIPs[0].String()
-		key := peer.HostName + ":" + ip
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		nodes = append(nodes, TailscalePeers{
-			HostName: peer.HostName,
-			IP:       ip,
-		})
 	}
-	return nodes, nil
 }

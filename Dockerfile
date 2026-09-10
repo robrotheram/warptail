@@ -1,11 +1,11 @@
-FROM node:latest AS ui_builder
+FROM node:24-bookworm-slim AS ui_builder
 ARG VER
 COPY dashboard /dashboard
 WORKDIR /dashboard
-RUN npm i; npm run build; 
+RUN npm ci && npm run build
 
 
-FROM golang:1.25 AS go_builder
+FROM golang:1.27.1 AS go_builder
 ARG VER
 WORKDIR /server
 COPY --from=ui_builder /dashboard/dist /server/dashboard/dist

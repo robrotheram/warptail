@@ -3,337 +3,202 @@ package router
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
-	"net/netip"
-	"sync"
+	"reflect"
 	"sync/atomic"
 	"time"
 	"warptail/pkg/utils"
-
-	"tailscale.com/tailcfg"
-	tailscale "tailscale.com/tsnet"
 )
 
 const (
-	udpBufferSize        = 65535
-	udpSessionTimeout    = 30 * time.Second
-	udpHeartbeatInterval = 5 * time.Second
+	udpBufferSize     = 65535
+	udpSessionTimeout = 30 * time.Second
+	udpMaxSessions    = 1024
+	udpQueueSize      = 64
 )
 
-// udpSession represents a client session for UDP NAT traversal.
-// Each client gets its own session with a dedicated backend connection
-// to maintain consistent source ports for protocols like QUIC.
+// Each client owns a backend socket and a bounded send queue. Replies only
+// return to that client; its backend source port persists until idle expiry.
 type udpSession struct {
 	clientAddr net.Addr
-	lastSeen   atomic.Value // stores time.Time
+	conn       net.Conn // guarded by route.mu
+	packets    chan []byte
+	lastSeen   atomic.Int64
 }
-
-// UDPRoute handles UDP traffic proxying through Tailscale.
-// It maintains per-client sessions to preserve connection identity
-// for stateful UDP protocols like QUIC.
 type UDPRoute struct {
-	config utils.RouteConfig
-	client *tailscale.Server
-	data   *utils.TimeSeries
-
-	mu         sync.RWMutex
-	status     RouterStatus
-	listener   net.PacketConn
-	remote     net.PacketConn
-	remoteAddr *net.UDPAddr
-	tsNodeAddr string
-
-	quit chan struct{}
-	wg   sync.WaitGroup
-
-	sessions sync.Map
-
-	latency   time.Duration
-	latencyMu sync.RWMutex
+	*connectionRoute
+	listener       net.PacketConn
+	sessions       map[string]*udpSession
+	sessionTimeout time.Duration
 }
 
-func NewUDPRoute(config utils.RouteConfig, client *tailscale.Server) *UDPRoute {
-	return &UDPRoute{
-		config: config,
-		data:   utils.NewTimeSeries(time.Second, 1000),
-		status: STOPPED,
-		client: client,
+func NewUDPRoute(config utils.RouteConfig, backend Backend) *UDPRoute {
+	return &UDPRoute{connectionRoute: newConnectionRoute(config, backend), sessionTimeout: udpSessionTimeout}
+}
+func (r *UDPRoute) Start() error {
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	return r.start()
+}
+func (r *UDPRoute) start() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.status == RUNNING {
+		return nil
 	}
-}
-
-func (route *UDPRoute) Status() RouterStatus {
-	route.mu.RLock()
-	defer route.mu.RUnlock()
-	return route.status
-}
-
-func (route *UDPRoute) Config() utils.RouteConfig {
-	route.mu.RLock()
-	defer route.mu.RUnlock()
-	return route.config
-}
-
-func (route *UDPRoute) Stats() utils.TimeSeriesData {
-	return route.data.Data
-}
-
-func (route *UDPRoute) Update(config utils.RouteConfig) error {
-	route.Stop()
-	route.mu.Lock()
-	route.config = config
-	route.mu.Unlock()
-	return route.Start()
-}
-
-func (route *UDPRoute) Stop() error {
-	route.mu.Lock()
-	if route.status != RUNNING {
-		route.mu.Unlock()
-		return fmt.Errorf("route not running")
+	listener, err := net.ListenPacket("udp", fmt.Sprintf(":%d", r.config.Port))
+	if err != nil {
+		return err
 	}
-	route.status = STOPPING
-
-	// Close connections to unblock readers
-	if route.listener != nil {
-		route.listener.Close()
+	r.listener = listener
+	r.sessions = make(map[string]*udpSession)
+	r.ctx, r.cancel = context.WithCancel(context.Background())
+	r.status = RUNNING
+	r.wg.Add(1)
+	go r.readClients(r.ctx, listener, machineAddress(r.config.Machine))
+	if pinger, ok := r.backend.(BackendPinger); ok {
+		address := r.config.Machine.Address
+		r.wg.Add(1)
+		go r.runHeartbeat(r.ctx, func(ctx context.Context) (time.Duration, error) { return pinger.Ping(ctx, address) })
 	}
-	if route.remote != nil {
-		route.remote.Close()
-	}
-
-	// Signal all goroutines to stop
-	close(route.quit)
-	route.mu.Unlock()
-
-	// Wait for all goroutines to finish
-	route.wg.Wait()
-
-	route.mu.Lock()
-	route.status = STOPPED
-	route.mu.Unlock()
-
-	utils.Logger.Info("Stopped UDP route", "port", route.config.Port)
 	return nil
 }
-
-func (route *UDPRoute) Start() error {
-	route.mu.Lock()
-	if route.status == RUNNING {
-		route.mu.Unlock()
-		route.Stop()
-		route.mu.Lock()
+func (r *UDPRoute) Stop() error {
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	return r.stop()
+}
+func (r *UDPRoute) stop() error {
+	r.mu.Lock()
+	if r.status == STOPPED {
+		r.mu.Unlock()
+		return nil
 	}
-
-	route.status = STARTING
-	route.quit = make(chan struct{})
-
-	laddr := fmt.Sprintf(":%d", route.config.Port)
-
-	var err error
-
-	route.listener, err = net.ListenPacket("udp", laddr)
-	if err != nil {
-		route.status = STOPPED
-		route.mu.Unlock()
-		return err
+	r.status = STOPPING
+	r.cancel()
+	r.listener.Close()
+	for _, session := range r.sessions {
+		if session.conn != nil {
+			session.conn.Close()
+		}
 	}
-
-	tsIP, err := GetTailScaleServerIp(route.client)
-	if err != nil {
-		route.listener.Close()
-		route.status = STOPPED
-		route.mu.Unlock()
-		log.Println("Failed to get Tailscale node address:", err)
-		return err
-	}
-	remoteAddr := fmt.Sprintf("%s:%d", tsIP, route.config.Machine.Port)
-
-	route.remote, err = route.client.ListenPacket("udp", remoteAddr)
-	if err != nil {
-		route.listener.Close()
-		route.status = STOPPED
-		route.mu.Unlock()
-		utils.Logger.Error(err, "Failed to create Tailscale UDP socket:")
-		return err
-	}
-
-	route.remoteAddr, err = net.ResolveUDPAddr("udp", route.backendAddr())
-	if err != nil {
-		route.listener.Close()
-		route.remote.Close()
-		route.status = STOPPED
-		route.mu.Unlock()
-		log.Fatal("Failed to resolve game server address:", err)
-	}
-
-	route.wg.Add(4)
-	go route.reader()
-	go route.serve()
-	go route.cleanupStaleSessions()
-	go route.runHeartbeat()
-
-	route.status = RUNNING
-	route.mu.Unlock()
+	r.mu.Unlock()
+	r.wg.Wait()
+	r.mu.Lock()
+	r.status = STOPPED
+	r.latency = -1
+	r.mu.Unlock()
 	return nil
 }
-
-func (route *UDPRoute) serve() {
-	defer route.wg.Done()
+func (r *UDPRoute) Update(config utils.RouteConfig) error {
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	if reflect.DeepEqual(r.Config(), config) {
+		return nil
+	}
+	running := r.Status() == RUNNING
+	r.stop()
+	r.mu.Lock()
+	r.config = config
+	r.mu.Unlock()
+	if running {
+		return r.start()
+	}
+	return nil
+}
+func (r *UDPRoute) readClients(ctx context.Context, listener net.PacketConn, address string) {
+	defer r.wg.Done()
 	buf := make([]byte, udpBufferSize)
 	for {
-		select {
-		case <-route.quit:
-			return
-		default:
-		}
-
-		n, _, err := route.remote.ReadFrom(buf)
+		n, clientAddr, err := listener.ReadFrom(buf)
 		if err != nil {
-			select {
-			case <-route.quit:
-				return
-			default:
-				log.Println("Tailscale read error:", err)
+			if ctx.Err() == nil {
+				utils.Logger.Error(err, "UDP listener failed")
+			}
+			return
+		}
+		key := clientAddr.String()
+		r.mu.Lock()
+		if ctx.Err() != nil {
+			r.mu.Unlock()
+			return
+		}
+		session := r.sessions[key]
+		if session == nil {
+			if len(r.sessions) >= udpMaxSessions {
+				r.mu.Unlock()
 				continue
 			}
+			session = &udpSession{clientAddr: clientAddr, packets: make(chan []byte, udpQueueSize)}
+			session.lastSeen.Store(time.Now().UnixNano())
+			r.sessions[key] = session
+			r.wg.Add(1)
+			go r.serveSession(ctx, listener, address, key, session)
 		}
-
-		// Copy data for safe concurrent access
-		data := make([]byte, n)
-		copy(data, buf[:n])
-
-		route.sessions.Range(func(_, v any) bool {
-			s := v.(*udpSession)
-			lastSeen := s.lastSeen.Load().(time.Time)
-
-			if time.Since(lastSeen) > udpSessionTimeout {
-				return true
-			}
-
-			_, err := route.listener.WriteTo(data, s.clientAddr)
+		session.lastSeen.Store(time.Now().UnixNano())
+		packet := append([]byte(nil), buf[:n]...)
+		select {
+		case session.packets <- packet:
+		default: // Drop excess UDP packets without blocking other clients.
+		}
+		r.mu.Unlock()
+	}
+}
+func (r *UDPRoute) serveSession(ctx context.Context, listener net.PacketConn, address, key string, session *udpSession) {
+	defer r.wg.Done()
+	defer func() { r.mu.Lock(); delete(r.sessions, key); r.mu.Unlock() }()
+	dialCtx, cancel := context.WithTimeout(ctx, backendDialTimeout)
+	conn, err := r.backend.Dial(dialCtx, "udp", address)
+	cancel()
+	if err != nil {
+		if ctx.Err() == nil {
+			utils.Logger.Error(err, "UDP backend connection failed", "address", address)
+		}
+		return
+	}
+	defer conn.Close()
+	r.mu.Lock()
+	if ctx.Err() != nil {
+		r.mu.Unlock()
+		return
+	}
+	session.conn = conn
+	r.mu.Unlock()
+	readDone := make(chan struct{})
+	go func() { defer close(readDone); r.readReplies(listener, session, conn) }()
+	defer func() { conn.Close(); <-readDone }()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-readDone:
+			return
+		case packet := <-session.packets:
+			conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			n, err := conn.Write(packet)
 			if err != nil {
-				log.Printf("Public write error to %s: %v", s.clientAddr, err)
-			} else {
-				route.data.LogRecived(uint64(len(data)))
+				return
 			}
-			return true
-		})
-	}
-}
-
-func (route *UDPRoute) backendAddr() string {
-	return fmt.Sprintf("%s:%d", route.config.Machine.Address, route.config.Machine.Port)
-}
-
-func (route *UDPRoute) cleanupStaleSessions() {
-	defer route.wg.Done()
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-route.quit:
-			return
-		case <-ticker.C:
-			route.sessions.Range(func(key, value any) bool {
-				s := value.(*udpSession)
-				lastSeen := s.lastSeen.Load().(time.Time)
-				if time.Since(lastSeen) > udpSessionTimeout {
-					route.sessions.Delete(key)
-					log.Printf("Session expired: %s", key)
-				}
-				return true
-			})
+			r.data.LogSent(uint64(n))
 		}
 	}
 }
-
-func (route *UDPRoute) reader() {
-	defer route.wg.Done()
+func (r *UDPRoute) readReplies(listener net.PacketConn, session *udpSession, conn net.Conn) {
 	buf := make([]byte, udpBufferSize)
 	for {
-		select {
-		case <-route.quit:
-			return
-		default:
-		}
-
-		n, clientAddr, err := route.listener.ReadFrom(buf)
+		conn.SetReadDeadline(time.Unix(0, session.lastSeen.Load()).Add(r.sessionTimeout))
+		n, err := conn.Read(buf)
 		if err != nil {
-			select {
-			case <-route.quit:
-				return
-			default:
-				log.Println("Public read error:", err)
-				continue
+			if timeout, ok := err.(net.Error); ok && timeout.Timeout() && time.Since(time.Unix(0, session.lastSeen.Load())) < r.sessionTimeout {
+				continue // Client traffic extended the session while Read was blocked.
 			}
-		}
-
-		session := &udpSession{
-			clientAddr: clientAddr,
-		}
-		session.lastSeen.Store(time.Now())
-
-		// Load or store atomically - if exists, update lastSeen
-		if existing, loaded := route.sessions.LoadOrStore(clientAddr.String(), session); loaded {
-			existing.(*udpSession).lastSeen.Store(time.Now())
-		}
-
-		_, err = route.remote.WriteTo(buf[:n], route.remoteAddr)
-		if err != nil {
-			log.Println("Tailscale write error:", err)
-		} else {
-			route.data.LogSent(uint64(n))
-		}
-	}
-}
-
-func (route *UDPRoute) runHeartbeat() {
-	defer route.wg.Done()
-	ticker := time.NewTicker(udpHeartbeatInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-route.quit:
 			return
-		case <-ticker.C:
-			route.measureLatency()
 		}
+		session.lastSeen.Store(time.Now().UnixNano())
+		written, err := listener.WriteTo(buf[:n], session.clientAddr)
+		if err != nil {
+			return
+		}
+		r.data.LogRecived(uint64(written))
 	}
-}
-
-// Since UDP is connectionless, we  measureLatency pings the backend machine to measure latency
-
-func (route *UDPRoute) measureLatency() {
-	c, err := route.client.LocalClient()
-	route.latencyMu.Lock()
-	defer route.latencyMu.Unlock()
-
-	if err != nil {
-		route.latency = -1
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	ip, err := netip.ParseAddr(route.config.Machine.Address)
-	if err != nil {
-		route.latency = -1
-		return
-	}
-
-	pr, err := c.Ping(ctx, ip, tailcfg.PingTSMP)
-	if err != nil {
-		route.latency = -1
-		return
-	}
-	route.latency = time.Duration(pr.LatencySeconds * float64(time.Second))
-}
-
-func (route *UDPRoute) Ping() time.Duration {
-	route.latencyMu.RLock()
-	defer route.latencyMu.RUnlock()
-	return route.latency
 }

@@ -155,8 +155,8 @@ export const RouterChart = ({ service }: RouterChartProps) => {
               <YAxis tickFormatter={formatBytes} />
               <Tooltip
                 contentStyle={{ backgroundColor: '#000' }}
-                formatter={formatBytes}
-                labelFormatter={formatXAxis}
+                formatter={value => formatBytes(Number(value ?? 0))}
+                labelFormatter={value => formatXAxis(String(value ?? ''))}
               />
               <Legend />
               <Line
@@ -165,6 +165,7 @@ export const RouterChart = ({ service }: RouterChartProps) => {
                 stroke="#8884d8"
                 name="sent"
                 dot={false}
+                isAnimationActive={false}
               />
               <Line
                 type="monotone"
@@ -172,6 +173,7 @@ export const RouterChart = ({ service }: RouterChartProps) => {
                 stroke="#82ca9d"
                 name="received"
                 dot={false}
+                isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>

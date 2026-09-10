@@ -6,34 +6,39 @@ import { useConfig } from '@/context/ConfigContext'
 import { getTSConfig, getTSSTATUS, Tailsale, TailsaleNode, TS_STATE, updateTSConfig } from '@/lib/api'
 import ProtectedRoute from '@/Protected'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createLazyFileRoute } from '@tanstack/react-router'
+import { createLazyFileRoute, useSearch, useNavigate } from '@tanstack/react-router'
 import { Save, Edit, Activity, Loader2, Key, Clock, ArrowUp, ArrowDown, ArrowUpDown, Terminal, CogIcon, TerminalIcon } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { ServerLogs } from '@/components/logs/ServerLogs'
 import { AccessLogs } from '@/components/logs/AccessLogs'
+import { RequestError } from '@/components/RequestError'
+import { Loader } from '@/context/AuthContext'
+import { toast } from 'sonner'
 import { ErrorLogs } from '@/components/logs/ErrorLogs'
 
 const TailScaleForm = () => {
 
-  const { data } = useQuery({
+  const { data, error, isPending, refetch } = useQuery({
     queryKey: ['tailscale'],
     queryFn: getTSConfig,
   })
 
   const [editMode, setEditMode] = useState(false)
-  const [hasAuthKey, setHasAuthKey] = useState<boolean>(() => !!data?.AuthKey)
+  const [hasAuthKey, setHasAuthKey] = useState(false)
   const { read_only } = useConfig()
-  const [editedRoute, setEditedRoute] = useState<Tailsale>(data!)
+  const [editedRoute, setEditedRoute] = useState<Tailsale>({ Hostname: '', AuthKey: '' })
   const queryClient = useQueryClient()
   const update = useMutation({
     mutationFn: updateTSConfig,
-    onSuccess: () => {
-      queryClient.invalidateQueries()
+    onSuccess: async () => {
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['tailscale'] }), queryClient.invalidateQueries({ queryKey: ['settings'] })])
       setEditMode(false)
+      setEditedRoute({ Hostname: '', AuthKey: '' })
+      toast.success('Tailscale settings saved.')
     },
   })
 
@@ -48,11 +53,16 @@ const TailScaleForm = () => {
   const handleEdit = () => {
     setEditMode(true)
     setEditedRoute(data!)
+    setHasAuthKey(!!data?.AuthKey)
+    update.reset()
   }
 
   const handleSave = () => {
-    update.mutate(editedRoute)
+    update.mutate({ ...editedRoute, Hostname: editedRoute.Hostname.trim(), AuthKey: hasAuthKey ? editedRoute.AuthKey : '' })
   }
+
+  if (isPending) return <TabsContent value="status"><Loader label="Loading settings…" /></TabsContent>
+  if (error) return <TabsContent value="status"><RequestError title="Unable to load settings" error={error} retry={() => void refetch()} /></TabsContent>
 
   return <TabsContent value="status" className="mt-6">
     <Card>
@@ -64,6 +74,7 @@ const TailScaleForm = () => {
         <CardDescription>Edit Tailscale Settings</CardDescription>
       </CardHeader>
       <CardContent>
+        {update.isError && <RequestError title="Unable to save settings" error={update.error} />}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="Hostname">Tailscale Hostname</Label>
@@ -71,25 +82,26 @@ const TailScaleForm = () => {
               id="Hostname"
               name="Hostname"
               type="text"
-              value={editMode ? editedRoute.Hostname : data?.Hostname}
+              value={editMode ? editedRoute.Hostname : data?.Hostname ?? ''}
               onChange={handleInputChange}
-              disabled={!editMode}
+              disabled={!editMode || update.isPending}
             />
           </div>
           <div className="flex items-center space-x-2">
             <Label htmlFor="airplane-mode">Use AuthKey: </Label>
-            <Switch id="airplane-mode" checked={hasAuthKey} onCheckedChange={setHasAuthKey} disabled={!editMode} />
+            <Switch id="airplane-mode" checked={editMode ? hasAuthKey : !!data?.AuthKey} onCheckedChange={setHasAuthKey} disabled={!editMode || update.isPending} />
           </div>
-          {data?.AuthKey || hasAuthKey && (
+          {(editMode ? hasAuthKey : !!data?.AuthKey) && (
             <div className="flex flex-col gap-2">
-              <Label htmlFor="AuthKey">Tailscale API Key</Label>
+              <Label htmlFor="AuthKey">Tailscale auth key</Label>
               <Input
                 id="AuthKey"
                 name="AuthKey"
-                type="text"
-                value={editMode ? editedRoute.AuthKey : data?.AuthKey}
+                type="password"
+                autoComplete="off"
+                value={editMode ? editedRoute.AuthKey : '••••••••'}
                 onChange={handleInputChange}
-                disabled={!editMode}
+                disabled={!editMode || update.isPending}
               />
             </div>
           )}
@@ -98,10 +110,10 @@ const TailScaleForm = () => {
       <CardFooter className={`flex justify-end`}>
         {editMode && (
           <div className="flex items-center gap-2">
-            <Button onClick={() => setEditMode(false)} className="w-24 bg-gray-500 hover:bg-gray-600">
+            <Button disabled={update.isPending} onClick={() => { setEditMode(false); setEditedRoute({ Hostname: '', AuthKey: '' }); update.reset() }} className="w-24 bg-gray-500 hover:bg-gray-600">
               Cancel
             </Button>
-            <Button onClick={handleSave} className="w-24 bg-blue-500 hover:bg-blue-600" disabled={update.isPending}>
+            <Button onClick={handleSave} className="w-24 bg-blue-500 hover:bg-blue-600" disabled={update.isPending || !editedRoute.Hostname.trim()}>
               {!update.isPending ? <Save className="mr-2 h-4 w-4" /> : <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
               Save
             </Button>
@@ -155,7 +167,7 @@ const TailScaleKeyCard = ({ key_expiry }: TailScaleKeyCardProps) => {
   const expiryStatusColor = getExpiryStatusColor(daysUntilExpiry)
 
   let expiryStatusText = ""
-  if (key_expiry === null) {
+  if (key_expiry == null) {
     expiryStatusText = "No Expiry"
   } else if (daysUntilExpiry > 0) {
     expiryStatusText = `${daysUntilExpiry} days`
@@ -169,13 +181,13 @@ const TailScaleKeyCard = ({ key_expiry }: TailScaleKeyCardProps) => {
     <CardContent>
       <div className="flex items-center gap-2">
         <Key className={`h-5 w-5 ${expiryStatusColor}`} />
-        <span className={`text-xl font-bold ${expiryStatusColor}`}>
+        <span className={`text-lg font-semibold ${expiryStatusColor}`}>
           {expiryStatusText}
         </span>
       </div>
       {key_expiry && (
         <p className="text-xs text-muted-foreground mt-1">
-          Expired at {formatExpiryDate(key_expiry)}
+          {daysUntilExpiry > 0 ? 'Expires' : 'Expired'} {formatExpiryDate(key_expiry)}
         </p>
       )}
     </CardContent>
@@ -195,7 +207,7 @@ const TailsaleMessages = () => {
     <TabsContent value="logs" className="mt-6">
       <Tabs defaultValue="server">
         <Card>
-          <CardHeader className='flex flex-row gap-2 justify-between'>
+          <CardHeader className='flex flex-wrap gap-4 justify-between'>
 
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -280,7 +292,7 @@ const TailScaleNodes = ({ nodes }: TailScaleNodesProps) => {
           <CardDescription>Overview of all your TailScale nodes and their current status</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          {sortedNodes.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No nodes are available on your tailnet.</p> : <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("hostname")}>
@@ -333,10 +345,11 @@ const TailScaleNodes = ({ nodes }: TailScaleNodesProps) => {
                     <Clock className="h-3 w-3 text-muted-foreground" />
                     <span>{formatLastSeen(node.last_seen)}</span>
                   </TableCell>}
+                  {node.online && <TableCell className="text-muted-foreground">Connected</TableCell>}
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </Table>}
         </CardContent>
       </Card>
     </TabsContent>
@@ -344,24 +357,16 @@ const TailScaleNodes = ({ nodes }: TailScaleNodesProps) => {
 }
 
 const SettingComponent = () => {
-  const { error, data } = useQuery({
+  const { error, data, isPending, refetch } = useQuery({
     queryKey: ['settings'],
     queryFn: getTSSTATUS,
   })
 
-  // Get the tab parameter from URL search params
-  const searchParams = new URLSearchParams(window.location.search)
-  const tabParam = searchParams.get('tab')
-  const [activeTab, setActiveTab] = useState(tabParam || 'table')
-
-  // Update active tab when URL changes
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const tab = urlParams.get('tab')
-    if (tab) {
-      setActiveTab(tab)
-    }
-  }, [])
+  const { tab: activeTab } = useSearch({ from: '/settings' })
+  const navigate = useNavigate({ from: '/settings' })
+  const setActiveTab = (tab: string) => { void navigate({ search: { tab: tab as 'table' | 'logs' | 'status' } }) }
+  if (isPending) return <Loader label="Loading Tailscale status…" />
+  if (error && !data) return <RequestError title="Unable to load Tailscale status" error={error} retry={() => void refetch()} />
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -371,17 +376,17 @@ const SettingComponent = () => {
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <span className="block sm:inline"></span>
+          <span className="block sm:inline">Unable to refresh Tailscale status. Please try again.</span>
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">TailScale Version</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data?.version.split('-')[0]}</div>
+            <div className="text-xl font-semibold break-words">{data?.version?.split('-')[0]}</div>
           </CardContent>
         </Card>
 
@@ -390,7 +395,7 @@ const SettingComponent = () => {
             <CardTitle className="text-sm font-medium">Current Hostname</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data?.hostname || "Unknown"}</div>
+            <div className="text-xl font-semibold break-words">{data?.hostname || "Unknown"}</div>
           </CardContent>
         </Card>
 
@@ -403,7 +408,7 @@ const SettingComponent = () => {
           <CardContent>
             <div className="flex items-center gap-2">
               <Activity className={`h-5 w-5 ${data?.state === TS_STATE.RUNNING ? 'text-green-500' : 'text-red-500'}`} />
-              <span className="text-xl font-bold">{data?.state}</span>
+              <span className="text-lg font-semibold">{data?.state}</span>
             </div>
           </CardContent>
         </Card>
@@ -415,8 +420,8 @@ const SettingComponent = () => {
           <TabsTrigger value="status"><CogIcon className='h-4' /> Settings</TabsTrigger>
         </TabsList>
         <TailScaleNodes nodes={data?.nodes || []} />
-        <TailsaleMessages />
-        <TailScaleForm />
+        {activeTab === 'logs' && <TailsaleMessages />}
+        {activeTab === 'status' && <TailScaleForm />}
       </Tabs>
     </div>
   )
@@ -424,5 +429,5 @@ const SettingComponent = () => {
 
 
 export const Route = createLazyFileRoute('/settings')({
-  component: () => <ProtectedRoute><SettingComponent /></ProtectedRoute>,
+  component: () => <ProtectedRoute admin><SettingComponent /></ProtectedRoute>,
 })

@@ -6,7 +6,6 @@ import (
 	"warptail/pkg/utils"
 
 	"github.com/gosimple/slug"
-	"tailscale.com/tsnet"
 )
 
 func containsRoute(routes []Route, config utils.RouteConfig) (Route, error) {
@@ -25,74 +24,79 @@ type Service struct {
 	Routes  []Route
 }
 
-func NewService(config utils.ServiceConfig, server *tsnet.Server) *Service {
+func NewService(config utils.ServiceConfig, backend Backend) (*Service, error) {
 	routes := []Route{}
 	for _, cfg := range config.Routes {
-		if route, err := NewRoute(cfg, server); err == nil {
-			routes = append(routes, route)
+		route, err := NewRoute(cfg, backend)
+		if err != nil {
+			return nil, err
 		}
+		routes = append(routes, route)
 	}
-	return &Service{
-		Id:      slug.Make(config.Name),
-		Name:    config.Name,
-		Enabled: config.Enabled,
-		Routes:  routes,
-	}
+	return &Service{Id: slug.Make(config.Name), Name: config.Name, Enabled: config.Enabled, Routes: routes}, nil
 }
 
-func (svc *Service) Update(config utils.ServiceConfig, server *tsnet.Server) *utils.RouterError {
-	if svc.Name != config.Name {
-		svc.Name = config.Name
-		svc.Id = slug.Make(config.Name)
-	}
-
-	svc.Enabled = config.Enabled
-	if !svc.Enabled {
-		svc.Stop()
-	}
-
-	existingRoutes := []Route{}
-	newRoutes := []utils.RouteConfig{}
+func (svc *Service) Update(config utils.ServiceConfig, backend Backend) (result *utils.RouterError) {
+	// Construct all new routes before changing the running service.
+	routes := []Route{}
 	for _, cfg := range config.Routes {
-		if route, err := containsRoute(svc.Routes, cfg); err == nil {
-			route.Update(cfg)
-			existingRoutes = append(existingRoutes, route)
-		} else {
-			newRoutes = append(newRoutes, cfg)
-		}
-	}
-	svc.pruneRoutes(existingRoutes)
-	svc.updateNewRoutes(existingRoutes, newRoutes, server)
-	return nil
-}
-
-func (svc *Service) pruneRoutes(existingRoutes []Route) {
-	for _, route := range svc.Routes {
-		if _, err := containsRoute(existingRoutes, route.Config()); err != nil {
-			if svc.Enabled {
-				route.Stop()
+		route, err := containsRoute(svc.Routes, cfg)
+		if err != nil {
+			route, err = NewRoute(cfg, backend)
+			if err != nil {
+				return utils.BadReqError(err.Error())
 			}
 		}
+		routes = append(routes, route)
 	}
-}
-
-func (svc *Service) updateNewRoutes(existingRoutes []Route, newRoutes []utils.RouteConfig, server *tsnet.Server) {
-	for _, cfg := range newRoutes {
-		if route, err := NewRoute(cfg, server); err == nil {
-			if svc.Enabled {
-				route.Start()
-			}
-			existingRoutes = append(existingRoutes, route)
+	previous := *svc
+	previousConfigs := make([]utils.RouteConfig, len(svc.Routes))
+	for i, route := range svc.Routes {
+		previousConfigs[i] = route.Config()
+	}
+	defer func() {
+		if result == nil {
+			return
 		}
-	}
-	svc.Routes = existingRoutes
-	if svc.Enabled {
+		for _, route := range routes {
+			route.Stop()
+		}
+		*svc = previous
+		for i, route := range svc.Routes {
+			route.Stop()
+			route.Update(previousConfigs[i])
+		}
+		if svc.Enabled {
+			if err := svc.Start(); err != nil {
+				result.Message += "; restoring previous routes: " + err.Error()
+			}
+		}
+	}()
+	if !config.Enabled {
 		for _, route := range svc.Routes {
-			if route.Status() != RUNNING {
-				route.Start()
-			}
+			route.Stop()
 		}
 	}
+	for _, route := range svc.Routes {
+		if _, err := containsRoute(routes, route.Config()); err != nil {
+			route.Stop()
+		}
+	}
+	for i, route := range routes {
+		if err := route.Update(config.Routes[i]); err != nil {
+			return utils.CustomError(500, err.Error())
+		}
+	}
+	svc.Name = config.Name
+	svc.Id = slug.Make(config.Name)
+	svc.Enabled = config.Enabled
+	svc.Routes = routes
+	if svc.Enabled {
+		if err := svc.Start(); err != nil {
+			return utils.CustomError(500, err.Error())
+		}
+	}
+	return nil
 }
 
 type ServiceStatus struct {
@@ -144,9 +148,15 @@ func (svc *Service) Stop() {
 	svc.Enabled = false
 }
 
-func (svc *Service) Start() {
+func (svc *Service) Start() error {
 	for _, route := range svc.Routes {
-		route.Start()
+		if err := route.Start(); err != nil {
+			for _, started := range svc.Routes {
+				started.Stop()
+			}
+			return fmt.Errorf("start service %q: %w", svc.Name, err)
+		}
 	}
 	svc.Enabled = true
+	return nil
 }
